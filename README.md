@@ -4,11 +4,15 @@ PFE de Master : distinguer le mouvement des objets de celui de la caméra, puis 
 
 ## Contenu du dépôt et démarrage
 
+[Dépôt public GitHub](https://github.com/AliAsri/pfe-stereo-evenementielle).
+
 Le dépôt contient le code, les tests, les configurations, les notebooks, les documents techniques et leur copie dans `markdowns/`. Les neuf programmes de diagnostic placés directement dans `outputs/focused_truck/` sont également versionnés. Les environnements Python, données DSEC, poids YOLO, archives et résultats générés restent locaux. Les liens vers `data/` et les résultats sous `outputs/` nécessitent donc les artefacts locaux ; cloner ce dépôt ne télécharge pas la démonstration ni les données.
 
 Configuration vérifiée sous Windows avec Python 3.14.6. Depuis la racine, dans PowerShell :
 
 ```powershell
+git clone https://github.com/AliAsri/pfe-stereo-evenementielle.git
+cd pfe-stereo-evenementielle
 py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-inspection-lock.txt
 .\.venv\Scripts\python.exe scripts/check_project.py --output outputs/checks/initial

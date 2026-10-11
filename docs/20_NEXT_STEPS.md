@@ -2,6 +2,12 @@
 
 **Mis à jour le 11 octobre 2026. Cette page est le point de reprise prioritaire.** Les anciennes feuilles de route restent historiques ; les actions EMatch proposées dans M19 sont mises en pause par la décision de simplification.
 
+## Versionnement GitHub — 11 octobre 2026
+
+À la demande de l'utilisateur, le projet est versionné dans le [dépôt public `AliAsri/pfe-stereo-evenementielle`](https://github.com/AliAsri/pfe-stereo-evenementielle), branche `main`. Le périmètre initial comprend 266 fichiers : sources, tests, configurations, notebooks, documentation, copies Markdown et illustrations existantes, soit environ 6,4 Mo avant compression Git. Les environnements `.venv` et `.venv-demo`, les données acquises, poids, archives et résultats générés sont exclus par `.gitignore` et conservés localement. Les neuf programmes Python directement dans `outputs/focused_truck/` sont inclus comme code source.
+
+Une copie isolée des fichiers suivis par Git, sans `data/` ni les résultats historiques, passe les 215 tests, le contrôle de 102 fichiers Python et les 30 aides CLI avec l'interpréteur d'inspection existant. Cela vérifie l'autonomie des contrôles logiciels, pas celle de la démonstration complète, qui nécessite toujours les données et poids locaux. Le README explique cette distinction et l'installation. Cette mise en version ne reprend pas les expériences scientifiques mises en pause.
+
 ## Audit global R02 — 11 octobre 2026
 
 **Audit terminé ; les nouvelles étapes restent en pause jusqu'à la reprise demandée par l'utilisateur.** La revue a porté sur les chemins critiques de lecture, causalité, géométrie, stéréo, suivi, pose, association XYZ, visualisation, import/export et évaluation. Elle complète les contrôles automatiques de l'ensemble `src/`, `scripts/` et `tests/`, ainsi que les contrôles supplémentaires des notebooks, configurations et diagnostics de l'extrait. Les 201 fichiers de travail sauvegardés avant correction et leurs empreintes sont conservés sous `outputs/review/R02/`.
