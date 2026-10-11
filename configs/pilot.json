@@ -1,0 +1,12 @@
+{
+  "name": "DSEC local CPU pilot v1",
+  "official_source_partition": "train",
+  "warning": "Local development partitions, not official benchmark splits; small validation subset, no generalization claim.",
+  "labels_root": "data/raw/zurich_city_04_e/detection_labels/train_labels/train",
+  "sequences": [
+    {"name": "zurich_city_04_e", "group": "zurich_city_04", "split": "train", "role": "geometry debug; no pedestrians"},
+    {"name": "zurich_city_04_b", "group": "zurich_city_04", "split": "train", "role": "pilot with pedestrians and cars"},
+    {"name": "thun_00_a", "group": "thun_00", "split": "validation", "role": "small independent drive group; not representative"},
+    {"name": "zurich_city_09_b", "group": "zurich_city_09", "split": "test_reserved", "role": "not acquired; label counts only consulted, no frame/metric inspection"}
+  ]
+}

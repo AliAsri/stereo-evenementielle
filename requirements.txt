@@ -1,0 +1,8 @@
+# Environnement d'inspection CPU sans framework DL.
+# L'inference YOLO utilise l'environnement separe requirements-demo-lock.txt.
+numpy>=2.2,<3
+h5py>=3.14,<4
+hdf5plugin>=5,<8
+PyYAML>=6,<7
+Pillow>=11,<13
+opencv-python-headless>=4.13,<5

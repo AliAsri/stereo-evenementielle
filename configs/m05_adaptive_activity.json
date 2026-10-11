@@ -1,0 +1,27 @@
+{
+  "experiment": "M05",
+  "status": "FIXED_BEFORE_RUN",
+  "claim": "Activity outliers only; not independent object motion",
+  "variants": ["absolute", "relative", "relative_history"],
+  "activity": {"min_rate": 20.0, "persistence_us": 20000},
+  "adaptive": {"global_mad_factor": 3.0, "history_deviation_factor": 3.0, "history_tau_us": 200000, "warmup_us": 200000},
+  "synthetic": {
+    "source_protocol": "configs/motion_protocol_v1.json",
+    "steps_us": [10000, 20000, 50000],
+    "strengths": [2, 8, 24],
+    "phase_tenths": [0, 2, 5, 7, 9],
+    "additional_controls": ["persistent_local_flicker", "local_plus_global"],
+    "negative_evaluation_start_us": 200000,
+    "response_horizon_us": 200000
+  },
+  "real": {
+    "manifest": "outputs/motion/M03/annotation_manifest.json",
+    "sequence": "zurich_city_04_b",
+    "allowed_split": "train",
+    "step_us": 10000,
+    "warmup_us": 200000,
+    "scope": "Three existing two-second train clips; no new validation or test access",
+    "timing": "Shared event read, separate full detector calls in rotating order, render/export excluded, unpaced replay",
+    "quality": "NOT_EVALUATED_NO_REVIEWED_ANNOTATIONS"
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><title>M06 — Annotation du mouvement</title>
+<style>body{font:16px system-ui;background:#111a27;color:#e5edf8;margin:24px;max-width:1000px}h1{font-size:25px}button,select,input{font:inherit;padding:7px;margin:4px;background:#203149;color:white;border:1px solid #65798f;border-radius:5px}canvas{width:min(100%,640px);height:auto;border:1px solid #65798f;touch-action:none}label{display:inline-block;margin:8px}#slider{width:620px;max-width:90%}p{max-width:850px;line-height:1.5}.warn{color:#ffd17c}.row{margin:12px 0}textarea{display:block;width:90%;height:70px;background:#203149;color:white}#status{color:#8fe3b0}</style>
+<h1>Annoter le mouvement — images sans prédictions</h1>
+<p>Inspectez le clip image par image. Dessinez une zone autour du phénomène étudié. Une apparition dans l’image n’est pas nécessairement un début de mouvement. En cas de doute, choisissez <b>incertain</b>. Les images représentent des fenêtres de 20 ms : ne revendiquez pas une précision plus fine.</p>
+<p class="warn">Ces annotations sont manuelles et provisoires. Le déplacement de la caméra et la parallaxe peuvent faire bouger le décor. Aucun modèle ni résultat de détection n’est affiché ici.</p>
+<div class="row"><label>Clip <select id="clip"></select></label><span id="meta"></span></div>
+<canvas id="canvas" width="640" height="480"></canvas>
+<div><button id="prev">← Image</button><button id="next">Image →</button><button id="play">Lire à 1×</button><span id="time"></span></div>
+<input id="slider" type="range" min="0" max="99" value="0">
+<div><label>Interprétation <select id="kind"><option value="uncertain">Incertain / non observable</option><option value="onset">Début de mouvement observable</option><option value="already_moving">Déjà en mouvement au début</option><option value="negative">Pas de mouvement local dans la zone durant le clip</option></select></label></div>
+<div><button id="lower">Début possible = début de cette fenêtre</button><button id="upper">Début certain = fin de cette fenêtre</button><span id="bounds"></span></div>
+<div><button id="until">Mouvement continu jusqu’à la fin de cette fenêtre</button><span id="duration"></span></div>
+<label><input id="continuous" type="checkbox">Optionnel : mouvement continu vérifié depuis le début certain jusqu’à cette limite, dans la même zone</label>
+<p>Cette durée sert à vérifier si l’alerte se maintient. Laissez cette option vide si le mouvement est ambigu, s’interrompt ou quitte la zone. Seuls les trois clips train communs à M03 et M05 sont présentés.</p>
+<label>Annotateur <input id="author" placeholder="Nom ou identifiant"></label>
+<label><input id="reviewed" type="checkbox">Clip entier examiné, annotation relue</label>
+<textarea id="notes" placeholder="Indices observés, mouvement de caméra, ambiguïtés…"></textarea>
+<div><button id="save">Ajouter cette annotation</button><button id="export">Exporter le JSON</button><button id="clearRoi">Effacer la zone</button></div>
+<p id="status" aria-live="polite">Aucune annotation sauvegardée. L’export JSON est nécessaire pour conserver votre travail.</p>
+<p>Chaque ajout reste visible dans la liste ci-dessous. Exportez avant de fermer la page. Plusieurs zones par clip sont possibles. Un clip sans annotation reste non évalué, jamais automatiquement négatif.</p><div id="entries"></div>
+<script src="annotation_data.js"></script><script>
+const data=window.ANNOTATION_DATA, $=id=>document.getElementById(id), canvas=$('canvas'),ctx=canvas.getContext('2d');
+let index=0,roi=null,start=null,lo=null,hi=null,annotations=[],timer=null,generation=0,lastImage=null,until=null,loaded=false;
+data.clips.forEach((c,i)=>{let o=document.createElement('option');o.value=i;o.textContent=c.id+' — '+c.split;$('clip').appendChild(o)});
+const current=()=>data.clips[Number($('clip').value)];
+function stop(){if(timer){clearInterval(timer);timer=null}$('play').textContent='Lire à 1×'}
+function paint(){if(!lastImage)return;ctx.drawImage(lastImage,0,0,640,480);if(roi){ctx.strokeStyle='#ffd166';ctx.lineWidth=2;ctx.strokeRect(roi[0],roi[1],roi[2]-roi[0],roi[3]-roi[1])}}
+function lock(value){loaded=!value;['lower','upper','until','save'].forEach(id=>$(id).disabled=value)}
+function resetContinuous(){until=null;$('continuous').checked=false;$('duration').textContent=''}
+function show(){lock(true);let c=current(),f=c.frames[index],g=++generation;let image=new Image();image.onload=()=>{if(g===generation){lastImage=image;paint();lock(false)}};image.onerror=()=>{if(g===generation){$('status').textContent='Image inaccessible : conserver les dossiers M03 et M06 ensemble.'}};image.src=f.image;$('slider').max=c.frames.length-1;$('slider').value=index;$('time').textContent=`Image ${index+1}/${c.frames.length} · +${(f.end_us-c.start_us)/1000} ms`;$('meta').textContent=`${c.sequence} · ${c.split}`;}
+function bounds(){$('bounds').textContent=` [${lo===null?'?':(lo-current().start_us)/1000}, ${hi===null?'?':(hi-current().start_us)/1000}] ms`}
+$('clip').onchange=()=>{stop();resetContinuous();index=0;roi=null;lo=hi=null;$('reviewed').checked=false;$('kind').value='uncertain';$('notes').value='';bounds();show()};
+$('slider').oninput=()=>{stop();index=Number($('slider').value);show()};$('prev').onclick=()=>{stop();index=Math.max(0,index-1);show()};$('next').onclick=()=>{stop();index=Math.min(current().frames.length-1,index+1);show()};
+$('play').onclick=()=>{if(timer){stop();return}if(index===current().frames.length-1)index=0;$('play').textContent='Pause';show();timer=setInterval(()=>{if(index===current().frames.length-1){stop();return}index++;show()},20)};
+function position(e){const b=canvas.getBoundingClientRect();return [Math.max(0,Math.min(640,(e.clientX-b.left)*640/b.width)),Math.max(0,Math.min(480,(e.clientY-b.top)*480/b.height))]}
+canvas.onpointerdown=e=>{if(!loaded)return;stop();resetContinuous();start=position(e);canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!start)return;let p=position(e);roi=[Math.min(start[0],p[0]),Math.min(start[1],p[1]),Math.max(start[0],p[0]),Math.max(start[1],p[1])].map(Math.round);paint()};canvas.onpointerup=()=>{start=null};
+$('clearRoi').onclick=()=>{resetContinuous();roi=null;paint()};$('lower').onclick=()=>{stop();resetContinuous();lo=current().frames[index].start_us;bounds()};$('upper').onclick=()=>{stop();resetContinuous();hi=current().frames[index].end_us;bounds()};
+$('until').onclick=()=>{stop();until=current().frames[index].end_us;$('continuous').checked=false;$('duration').textContent=` jusqu’à +${(until-current().start_us)/1000} ms`};
+$('kind').onchange=resetContinuous;
+function list(){ $('entries').replaceChildren();annotations.forEach((a,i)=>{let row=document.createElement('div');row.textContent=`${i+1}. ${a.clip_id} · ${a.kind} · ${a.reviewed?'relu':'brouillon'} · ${a.active_interval_us?'durée continue annotée':'durée non annotée'} `;let b=document.createElement('button');b.textContent='Supprimer';b.onclick=()=>{annotations.splice(i,1);list()};row.appendChild(b);$('entries').appendChild(row)})}
+$('save').onclick=()=>{const kind=$('kind').value;if(!$('author').value.trim()){$('status').textContent='Renseignez un annotateur.';return}if(kind!=='uncertain'&&(!roi||roi[2]<=roi[0]||roi[3]<=roi[1])){$('status').textContent='Dessinez une zone non vide.';return}if(kind==='onset'&&(lo===null||hi===null||hi<=lo)){$('status').textContent='Fixez un intervalle de début possible/certain non vide.';return}if($('continuous').checked&&(kind!=='onset'||until===null||until<=hi)){$('status').textContent='Pour la durée continue, choisir une fin après le début certain.';return}annotations.push({active_interval_us:kind==='onset'&&$('continuous').checked?[hi,until]:null,continuous_motion_reviewed:kind==='onset'&&$('continuous').checked,clip_id:current().id,kind,roi_xyxy:roi?roi.slice():null,onset_interval_us:kind==='onset'?[lo,hi]:null,annotator:$('author').value.trim(),reviewed:$('reviewed').checked,notes:$('notes').value,source:'manual_blind_event_clip',created_utc:new Date().toISOString()});list();$('status').textContent=`${annotations.length} annotation(s) en mémoire. Exportez le JSON pour les conserver.`};
+$('export').onclick=()=>{if(!annotations.length){$('status').textContent='Aucune annotation à exporter.';return}const blob=new Blob([JSON.stringify({schema:data.schema,target:data.target,annotations},null,2)],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='M06_manual_annotations.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000)};
+window.onbeforeunload=e=>{if(annotations.length){e.preventDefault();e.returnValue=''}};show();bounds();
+</script></html>

@@ -1,0 +1,48 @@
+{
+  "protocol_id": "motion-response-v1",
+  "status": "FROZEN_BEFORE_CONTROL_RUN_AND_REAL_ANNOTATION_EVALUATION",
+  "target": "Observable local movement relative to the scene; independent object motion requires separate evidence",
+  "real_data": {
+    "manifest": "outputs/motion/M03/annotation_manifest.json",
+    "annotation_schema": "pfe-motion-annotation-v1",
+    "annotation_resolution_us": 20000,
+    "required_source": "manual_blind_event_clip",
+    "review_required": true,
+    "uncertain_and_already_moving": "Exclude from onset scoring, report counts",
+    "negative_scope": "Fixed ROI over the entire clip; never assume an unannotated area is negative",
+    "matching": "Proposal centre inside ROI; diagnostic only, not object recall or AP",
+    "response_horizon_us": 200000,
+    "abstention": "Unknown output, never inactive; report coverage and censored starts",
+    "delay": "Interval in event time, conditional on an observed response; also report all missed, early, truncated and unknown cases",
+    "aggregation": "Per annotation and split; no pooling overlapping ROIs or multiple annotators",
+    "selection": "Tune only on train; retain validation as evaluation, test_reserved untouched"
+  },
+  "controls": {
+    "kind": "ARTIFICIAL_EVENT_ACTIVITY_NOT_PHYSICAL_EVENT_SIMULATION",
+    "width": 128,
+    "height": 96,
+    "duration_us": 1000000,
+    "base_onset_us": 400000,
+    "phase_tenths_of_window": [0, 2, 5, 7, 9],
+    "steps_us": [10000, 20000, 50000],
+    "persistence_us": [10000, 20000, 40000],
+    "min_rates": [10.0, 20.0, 40.0],
+    "events_per_ms_per_cell": [2, 8, 24],
+    "negative_cases": ["empty", "hot_pixel", "global_burst"],
+    "response_horizon_us": 200000,
+    "roi_xyxy": [16, 32, 48, 48],
+    "noise_seed": 42,
+    "noise_events_per_second": 1000,
+    "global_burst_note": "Spatially widespread illumination-like event burst, no independently moving object. Deliberately tests a known confound."
+  },
+  "future_object_evaluation": {
+    "status": "NOT_IMPLEMENTED_NO_OBJECT_MOTION_GT",
+    "requirements": [
+      "Reviewed object identities and per-time geometry with observable/occluded states",
+      "Motion onset independent of first visibility and camera displacement",
+      "Predeclared spatial overlap criterion and one-to-one matching",
+      "Object-level recall with misses and abstentions in the denominator",
+      "Negative-scene alert exposure and scene/sequence-level uncertainty"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "experiment": "M13",
+  "sequences": ["zurich_city_04_b", "zurich_city_04_e"],
+  "anchor_indices": [3, 10, 17],
+  "anchor_source": "outputs/motion/M12",
+  "normalizer": "outputs/stereo/S01/normalizer.json",
+  "clip_before_us": 1000000,
+  "clip_after_us": 1000000,
+  "review_window_us": 20000,
+  "review_step_us": 20000,
+  "comparison_windows_us": [20000, 50000],
+  "comparison_steps_us": [20000, 50000],
+  "residual_speed_threshold_px_s": 150.0,
+  "ransac_noise_threshold_px": 1.5,
+  "depth": "Same predicted S01 depth dated at anchor; accumulated over 50 ms in every condition",
+  "interpretation": "Sensitivity diagnostic, not causal isolation of overlap: window duration and interval also change",
+  "selection": "Fixed indices spread across existing train pairs, no selection by candidate count",
+  "quality": "Pending independent review; no real mobility labels inferred from residuals"
+}

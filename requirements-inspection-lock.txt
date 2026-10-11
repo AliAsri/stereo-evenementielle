@@ -1,0 +1,6 @@
+h5py==3.16.0
+hdf5plugin==7.1.0
+numpy==2.5.3
+opencv-python-headless==4.14.0.94
+pillow==12.3.0
+PyYAML==6.0.3

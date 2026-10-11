@@ -1,0 +1,19 @@
+{
+  "experiment": "M09",
+  "status": "FIXED_BEFORE_BENCHMARK",
+  "source_segments": "outputs/motion/M07_12s/summary.json",
+  "sequences": ["zurich_city_04_b", "zurich_city_04_e"],
+  "allowed_split": "train",
+  "paired_steps_us": [10000, 20000],
+  "paced_step_us": 10000,
+  "paced_repeats": 2,
+  "warmup_us": 200000,
+  "max_wall_seconds_per_case": 120,
+  "variants": ["reference", "lookup"],
+  "reader": "CachedIndexedDSECReader for both variants",
+  "optimizations": ["Precompute pixel-to-cell mapping", "Nonzero scan on Boolean occupancy", "Avoid copying already-native integer arrays during coordinate casts"],
+  "paired_protocol": "Shared read, read-only event arrays, alternate detector order each window, exact outputs and persistence state checked outside timing",
+  "paired_total_cost": "Shared read duration plus each separately timed detector call; not a standalone pipeline benchmark",
+  "paced_protocol": "Separate runs at 10 ms, same cached reader class, reverse case order in repeat 2, no skipped windows",
+  "quality": "No threshold changes and no motion accuracy measured"
+}

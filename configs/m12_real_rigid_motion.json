@@ -1,0 +1,17 @@
+{
+  "experiment": "M12",
+  "sequences": ["zurich_city_04_b", "zurich_city_04_e"],
+  "split": "train",
+  "depth_inventory": "outputs/motion/M11/real_input_inventory.json",
+  "source_manifest": "configs/pilot.json",
+  "normalizer": "outputs/stereo/S01/normalizer.json",
+  "step_us": 20000,
+  "window_us": 50000,
+  "depth_source": "predicted",
+  "geometry": "event-left rectified, full resolution 640x480",
+  "sampling": "nearest pixel floor(x+.5), explicit mask, no filling, duplicate samples excluded",
+  "protocol": "All 40 inventoried train depth maps; reject incomplete temporal pairs explicitly; no quality-based selection",
+  "temporal_limit": "50 ms causal accumulated images shifted 20 ms overlap by 30 ms; not instantaneous observations",
+  "timing_limit": "Cached depth: timings exclude original stereo/depth calculation and are not end-to-end latency",
+  "quality": "No reviewed real motion labels; residuals are candidates, not confirmed moving objects"
+}

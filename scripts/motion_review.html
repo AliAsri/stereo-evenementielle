@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8"><title>M13 — Relecture sans prédictions</title>
+<style>
+body{font:16px system-ui;background:#111a27;color:#edf3ff;max-width:1000px;margin:24px auto;padding:0 16px;line-height:1.5}h1{font-size:26px}button,input,select,textarea{font:inherit;background:#203149;color:white;border:1px solid #8094aa;padding:7px;margin:4px;border-radius:5px}canvas{width:min(100%,640px);height:auto;touch-action:none;border:1px solid #8094aa}label{display:inline-block;margin:8px 0}textarea{display:block;width:90%;height:70px}.warn{color:#ffd080}#slider{width:620px;max-width:90%}#status{color:#95ecc7}button:disabled{opacity:.5}
+</style>
+<h1>Examiner le mouvement — vues sans prédictions</h1>
+<p>Chaque image contient 20 ms d'événements rectifiés. Le mouvement de caméra, la parallaxe et l'éclairage peuvent déplacer les structures. Choisissez <b>inconnu</b> lorsque le mouvement propre de l'objet n'est pas observable avec confiance.</p>
+<p class="warn">Aucune détection ni profondeur n'est affichée. Une classe d'objet ou une zone active ne prouve pas la mobilité. La lecture est indicative ; les dates des images font référence. Ces annotations restent une relecture manuelle, pas une vérité terrain instrumentée.</p>
+<label>Extrait <select id="clip"></select></label><span id="meta"></span>
+<div><canvas id="canvas" width="640" height="480"></canvas></div>
+<div><button id="prev">← Image</button><button id="play">Lire</button><button id="next">Image →</button><span id="time"></span></div>
+<input id="slider" type="range" min="0" max="99" value="0">
+<p>Dessinez une zone, puis choisissez la première et la dernière image de l'intervalle examiné. Si l'objet sort de cette zone ou change d'état, raccourcissez l'intervalle. Ces bornes ne sont pas une annotation précise du début de mouvement.</p>
+<div><button id="lower">Première image = image actuelle</button><button id="upper">Dernière image = image actuelle</button><button id="clear">Effacer la zone</button><span id="bounds"></span></div>
+<label>Objet dans cette zone <select id="state"><option value="unknown">Inconnu / ambigu</option><option value="moving">Mouvement propre observable</option><option value="static">Décor / objet immobile dans la scène</option></select></label>
+<label>Caméra <select id="camera"><option value="unknown">Inconnu</option><option value="moving">En mouvement</option><option value="fixed">Fixe</option></select></label>
+<div><label><input type="checkbox" id="whole">La zone reste pertinente pendant tout l'intervalle</label></div>
+<div><label><input type="checkbox" id="reviewed">J'ai examiné tout l'intervalle et relu cette annotation</label></div>
+<label>Annotateur <input id="author" placeholder="Nom ou identifiant"></label>
+<textarea id="notes" placeholder="Indices observés et limites : mouvement propre, caméra, ambiguïtés… Obligatoire."></textarea>
+<div><button id="save">Ajouter l'annotation</button><button id="export">Exporter le JSON</button></div>
+<p id="status" aria-live="polite">Aucune annotation. Exportez avant de fermer pour conserver votre travail.</p><div id="entries"></div>
+<script src="review_data.js"></script><script src="motion_review.js"></script>
+</html>

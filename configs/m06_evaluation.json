@@ -1,0 +1,12 @@
+{
+  "protocol_id": "motion-response-multirate-v2",
+  "annotation_schema": "pfe-motion-annotation-v1",
+  "prediction_cadence_policy": "Positive integer divisor of original annotation period, aligned to clip start; complete stream required",
+  "onset_policy": "Keep annotated interval unchanged; never round it to prediction cadence",
+  "response_horizon_us": 200000,
+  "continuous_interval": "Optional active_interval_us plus continuous_motion_reviewed=true, at original annotation boundaries",
+  "matching": "Proposal centre inside fixed native ROI; diagnostic only, not object AP or tracking recall",
+  "scope": "Common M03/M05 train clips only; unmatched annotations reported as excluded outside comparison",
+  "no_annotations_policy": "Validate streams and produce PENDING_ANNOTATIONS with no real quality score",
+  "variants": ["absolute", "relative", "relative_history", "global_residual_20ms"]
+}

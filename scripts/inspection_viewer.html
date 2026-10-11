@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PFE — Inspection du mouvement</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#0d1724;color:#e8f0f8}body{margin:0 auto;max-width:1440px;padding:22px}h1{font-size:25px;margin:0 0 8px}h2{font-size:17px;margin:10px 0}p{margin:8px 0;line-height:1.5}.muted{color:#aec1d4}.warning{color:#ffd17a}button,select,input{font:inherit}button,select{border:1px solid #587087;border-radius:6px;background:#20354a;color:#eef6ff;padding:8px 12px;cursor:pointer}button:hover,button[aria-pressed=true]{background:#285876}button:disabled{opacity:.4;cursor:default}:focus-visible{outline:3px solid #6fdfff;outline-offset:2px}.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 10px}#seek{width:100%;accent-color:#5cdbfa;margin:10px 0}.views{display:grid;grid-template-columns:1fr 1fr;gap:16px}canvas{display:block;width:100%;height:auto;background:#000;border:1px solid #405b70;box-sizing:border-box;cursor:crosshair}.panel{background:#142537;border:1px solid #29445b;padding:14px;border-radius:8px;margin-top:14px}.legend{display:flex;flex-wrap:wrap;gap:16px;margin:10px 0}.dot{display:inline-block;width:9px;height:9px;border-radius:100%;margin-right:5px}.orange{background:#ffb634}.green{background:#27d4a4}.gray{background:#aaa}.cyan{color:#61dfff}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid #30485e}tr.selected{background:#204b60}td button{padding:5px 9px}#detail{white-space:pre-line;line-height:1.6;min-height:54px}#frameMeta{font-variant-numeric:tabular-nums}label{cursor:pointer}footer{margin-top:16px;font-size:14px;color:#aec1d4}@media(max-width:800px){body{padding:12px}.views{grid-template-columns:1fr}h1{font-size:22px}}
+</style>
+<h1>Comprendre les indices de mouvement</h1>
+<p class="muted">Un extrait DSEC · images événementielles de 50 ms · suivi sur 100 ms</p>
+<p class="warning"><b>Mouvement propre non confirmé.</b> Une détection YOLO ou un point orange ne prouve pas qu’un objet bouge indépendamment de la caméra.</p>
+<div class="controls">
+<button id="first" aria-label="Première image">Début</button><button id="prev" aria-label="Image précédente">← Image</button>
+<button id="play">Lire</button><button id="next" aria-label="Image suivante">Image →</button><button id="last" aria-label="Dernière image">Fin</button>
+<label>Lecture <select id="speed"><option value="100">Ralenti ×5</option><option value="250">Ralenti ×12,5</option><option value="500">Ralenti ×25</option></select></label>
+<button id="clear">Effacer la sélection</button>
+<button id="comparePose" hidden>Comparer les poses</button>
+</div>
+<input id="seek" type="range" min="0" value="0" aria-label="Image de l’extrait">
+<p id="frameMeta" role="status"></p>
+<section id="sensitivitySummary" hidden>
+<p id="sensitivityMetric" role="status"></p>
+<p class="muted">Sensibilité à une hypothèse de pose : mêmes points et profondeurs, transformation remplacée par celle de l’image précédente. Une faible valeur ne garantit pas une pose correcte ; ce pourcentage ne confirme pas la mobilité.</p>
+</section>
+<div class="controls"><label><input id="boxes" type="checkbox" checked> Boîtes YOLO</label><label><input id="points" type="checkbox" checked> Points du suivi</label><label><input id="regions" type="checkbox" checked> Zones candidates</label><label><input id="candidates" type="checkbox"> Points résiduels seulement</label></div>
+<div class="views">
+<section><h2>Objets — image native</h2><canvas id="native" width="640" height="480" aria-label="Détections YOLO, sélection par clic ou tableau"></canvas></section>
+<section><h2>Mouvement — image rectifiée</h2><canvas id="motion" width="640" height="480" aria-label="Points suivis, cliquer pour examiner un résidu"></canvas></section>
+</div>
+<div class="legend"><span><i class="dot orange"></i>Résidu &gt; 3 px</span><span><i class="dot green"></i>Compatible avec le modèle</span><span><i class="dot gray"></i>Profondeur ou modèle indisponible</span></div>
+<p class="muted" id="sceneCounts"></p>
+<section class="panel" id="posePanel" hidden>
+<h2>Une même image, deux transformations</h2>
+<p class="warning"><b>Hypothèse de sensibilité — mobilité non confirmée.</b> À droite, seule la pose est remplacée par celle de l’image précédente. Les points, déplacements et profondeurs sont identiques. Cela ne désigne pas la bonne pose.</p>
+<p id="poseCounts"></p>
+<label><input id="changedOnly" type="checkbox"> Afficher uniquement les points qui changent de statut</label>
+<div class="views">
+<section><h2 id="poseOriginalTitle">Résultat enregistré</h2><canvas id="poseOriginal" width="640" height="480" aria-label="Résultat enregistré, cliquer pour comparer un point"></canvas></section>
+<section><h2 id="poseHypothesisTitle">Hypothèse avec la pose précédente</h2><canvas id="poseHypothesis" width="640" height="480" aria-label="Hypothèse de sensibilité, cliquer pour comparer le même point"></canvas></section>
+</div>
+<div class="controls"><button id="firstChanged">Premier point modifié</button><button id="nextChanged">Point modifié suivant</button></div>
+<p id="poseDetail" aria-live="polite">Cliquez sur un point dans l’une des deux images pour comparer ses résidus.</p>
+<p class="muted">Orange : résidu &gt; 3 px ; vert : compatible avec le modèle ; gris : inconnu. Les cadres sont des groupes de candidats, pas des contours d’objets. Les deux poses décrivent des intervalles de 100 ms décalés de 20 ms. Cette hypothèse ne remplace aucun résultat enregistré.</p>
+</section>
+<section class="panel"><h2>Zones candidates de mouvement résiduel</h2><p class="muted">Cadres orange dans l’image rectifiée : regroupement spatial, sans classe ni identité. Une zone peut mélanger plusieurs objets et du décor.</p><div id="regionList" class="controls"></div></section>
+<section class="panel"><h2>Détections de cette image</h2><p class="muted">Sélectionnez une ligne ou une boîte. Les numéros recommencent à chaque image ; ce ne sont pas des identités suivies.</p>
+<div class="table-wrap"><table><thead><tr><th>Inspecter</th><th>Classe · score YOLO</th><th>Profondeur Z</th><th>Points résiduels / suivis</th><th>Points inconnus</th></tr></thead><tbody id="objects"></tbody></table></div></section>
+<section class="panel"><h2 id="detailTitle">Inspection</h2><div id="detail" aria-live="polite">Cliquez sur une détection à gauche ou un point à droite. Aucun annotateur ni label à renseigner.</div></section>
+<footer>Résultats enregistrés, aucun calcul relancé par ce lecteur. La vitesse de lecture est un ralenti visuel, pas la vitesse du système.<br>Espace : lire/pause · ← / → : changer d’image · Début / Fin : bornes. Aucun envoi de données ni annotation enregistrée.</footer>
+<script id="payload" type="application/json">__VIEWER_DATA__</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('payload').textContent), frames=data.frames;
+const $=id=>document.getElementById(id), native=$('native'), motion=$('motion');
+const nc=native.getContext('2d'), mc=motion.getContext('2d');
+const colors={UNKNOWN:'#aaaaaa',MODEL_CONSISTENT:'#27d4a4',RESIDUAL_CANDIDATE:'#ffb634'};
+const names={person:'personne',car:'voiture'}, labels={UNKNOWN:'Inconnu',MODEL_CONSISTENT:'Compatible avec le modèle',RESIDUAL_CANDIDATE:'Candidat résiduel'};
+let index=0,selectedBox=null,selectedPoint=null,selectedRegion=null,timer=null,images=[];
+let posePoint=null;
+const sensitivity=data.sensitivity;
+const fmt=(n,d=2)=>n==null?'indisponible':Number(n).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+function pause(){if(timer!==null)clearTimeout(timer);timer=null;$('play').textContent='Lire';$('play').setAttribute('aria-pressed','false');}
+function advance(){if(index>=frames.length-1){pause();return;}show(index+1);if(index===frames.length-1){pause();return;}timer=setTimeout(advance,Number($('speed').value));}
+function toggle(){if(timer!==null){pause();return;}if(index===frames.length-1)show(0);$('play').textContent='Pause';$('play').setAttribute('aria-pressed','true');timer=setTimeout(advance,Number($('speed').value));}
+function arrow(ctx,a,b,color){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();const t=Math.atan2(b[1]-a[1],b[0]-a[0]);ctx.beginPath();ctx.moveTo(...b);ctx.lineTo(b[0]-7*Math.cos(t-.45),b[1]-7*Math.sin(t-.45));ctx.lineTo(b[0]-7*Math.cos(t+.45),b[1]-7*Math.sin(t+.45));ctx.fill();}
+function draw(){const f=frames[index];nc.clearRect(0,0,640,480);mc.clearRect(0,0,640,480);if(images[index]){nc.drawImage(images[index][0],0,0);mc.drawImage(images[index][1],0,0);}
+ if($('boxes').checked)f.objects.forEach((o,i)=>{const [x1,y1,x2,y2]=o.native_xyxy;nc.strokeStyle=i===selectedBox?'#fff':'#61dfff';nc.lineWidth=i===selectedBox?3:2;nc.strokeRect(x1,y1,x2-x1,y2-y1);nc.fillStyle='#102030';nc.fillRect(x1,Math.max(0,y1-21),36,21);nc.fillStyle='#61dfff';nc.font='16px system-ui';nc.fillText('#'+(i+1),x1+3,Math.max(16,y1-4));});
+ if($('regions').checked)f.regions.forEach((r,i)=>{const [x1,y1,x2,y2]=r.xyxy;mc.strokeStyle=i===selectedRegion?'#fff':'#ffb634';mc.lineWidth=i===selectedRegion?3:2;mc.setLineDash([7,4]);mc.strokeRect(x1,y1,x2-x1,y2-y1);mc.setLineDash([]);mc.fillStyle='#102030';mc.fillRect(x1,Math.max(0,y1-22),42,22);mc.fillStyle='#ffb634';mc.font='16px system-ui';mc.fillText('Z'+(i+1),x1+3,Math.max(16,y1-5));});
+ const ids=selectedRegion!==null?new Set(f.regions[selectedRegion].point_indices):selectedBox===null?null:new Set(f.objects[selectedBox].point_indices);
+ if($('points').checked)f.tracks.forEach((p,i)=>{if($('candidates').checked&&p.status!=='RESIDUAL_CANDIDATE')return;mc.globalAlpha=ids&&!ids.has(i)?.22:1;mc.fillStyle=colors[p.status];mc.beginPath();mc.arc(...p.current,p.status==='RESIDUAL_CANDIDATE'?3:2,0,Math.PI*2);mc.fill();});mc.globalAlpha=1;
+ if(selectedBox!==null){const s=f.objects[selectedBox].surface;if(s.rectified_pixel){mc.strokeStyle='#61dfff';mc.lineWidth=2;mc.beginPath();mc.arc(...s.rectified_pixel,7,0,Math.PI*2);mc.stroke();}}
+ if(selectedPoint!==null){const p=f.tracks[selectedPoint];arrow(mc,p.previous,p.current,'#fff');if(p.predicted){arrow(mc,p.previous,p.predicted,'#61dfff');arrow(mc,p.predicted,p.current,'#ffb634');}mc.strokeStyle='#fff';mc.beginPath();mc.arc(...p.current,8,0,Math.PI*2);mc.stroke();}
+}
+function inspectBox(i){pause();selectedRegion=null;selectedBox=i;selectedPoint=null;const o=frames[index].objects[i],s=o.surface,m=o.motion_support;
+ $('detailTitle').textContent=`Détection #${i+1} · ${names[o.class_name]||o.class_name}`;
+ const location=s.xyz_m?`Surface dans camRect0 : X=${fmt(s.xyz_m[0])}, Y=${fmt(s.xyz_m[1])}, Z=${fmt(s.xyz_m[2])} m. Distance radiale=${fmt(s.radial_distance_m)} m.\nX vers la droite, Y vers le bas, Z vers l’avant. Ce point peut appartenir au fond ; ce n’est pas le centre physique de l’objet.`:`XYZ indisponible : ${s.status==='INSUFFICIENT_DEPTH'?'profondeur insuffisante':s.status}.`;
+ $('detail').textContent=`Score YOLO : ${fmt(o.confidence)} (ce score ne mesure pas la mobilité).\n${location}\nSupport de profondeur : ${s.valid_pixels}/${s.mapped_pixels} pixels dans la zone intérieure, dont ${s.retained_pixels} retenus.\nMouvement : ${m.RESIDUAL_CANDIDATE} points résiduels, ${m.MODEL_CONSISTENT} compatibles et ${m.UNKNOWN} inconnus. Mouvement propre non confirmé.\nÀ droite, les points de cette boîte sont mis en évidence ; ils peuvent aussi appartenir au décor.`;
+ updateTable();draw();}
+function inspectPoint(i){pause();selectedRegion=null;selectedPoint=i;selectedBox=null;const p=frames[index].tracks[i];$('detailTitle').textContent=`Point ${i+1} · ${labels[p.status]}`;
+ const observed=Math.hypot(p.current[0]-p.previous[0],p.current[1]-p.previous[1]);const predicted=p.predicted?Math.hypot(p.predicted[0]-p.previous[0],p.predicted[1]-p.previous[1]):null;
+ $('detail').textContent=`Déplacement observé sur 100 ms : ${fmt(observed)} px. Déplacement prédit par le modèle : ${fmt(predicted)}${predicted===null?'':' px'}.\nRésidu (distance entre positions prédite et observée) : ${fmt(p.residual)}${p.residual===null?'':' px'}. Seuil conservé : 3 px.\nProfondeur au départ, 100 ms avant cette image : ${fmt(p.previous_depth_m)}${p.previous_depth_m===null?'':' m'}.\nFlèches à leur échelle réelle : blanc = suivi observé ; bleu = déplacement prédit ; orange = résidu. Leur origine est le point dans l’image précédente.\nLe modèle représente le mouvement rigide dominant. Ce point seul ne prouve ni un objet mobile ni un fond immobile.`;updateTable();draw();}
+
+function updateRegions(){const list=$('regionList');list.replaceChildren();const f=frames[index];if(!f.regions.length){list.textContent='Aucune zone avec au moins 3 points résiduels à cette date.';return;}f.regions.forEach((r,i)=>{const button=document.createElement('button');button.textContent=`Z${i+1} · ${r.support_points} points${r.yolo_support.length?'':' · sans point commun avec YOLO'}`;button.setAttribute('aria-label','Inspecter la zone '+(i+1));button.setAttribute('aria-pressed',String(selectedRegion===i));button.onclick=()=>inspectRegion(i);list.append(button);});}
+function inspectRegion(i){pause();selectedBox=null;selectedPoint=null;selectedRegion=i;const r=frames[index].regions[i];$('detailTitle').textContent=`Zone Z${i+1} · candidate, mobilité non confirmée`;const shared=r.yolo_support.length?r.yolo_support.map(s=>`détection #${s.detection_index+1} : ${s.shared_points} points`).join(' ; '):'aucun point partagé avec les boîtes YOLO de cette image';$('detail').textContent=`${r.support_points} points résiduels regroupés. Résidu médian : ${fmt(r.median_residual_px)} px ; maximum : ${fmt(r.max_residual_px)} px.
+Cadre dans camRect0 : [${r.xyxy.join(', ')}].
+Points communs avec YOLO : ${shared}. Ce recouvrement ne confirme pas une identité d’objet.
+Grille de 32 px, dilatation 3 × 3, connexion à 8 voisins, au moins 3 points ; marge de 8 px. Le cadre entoure les points, pas nécessairement les limites d’un objet.
+Une chaîne de points proches peut fusionner plusieurs surfaces. La zone peut contenir du décor et ne prouve pas de mouvement propre. Aucun suivi de cette zone entre les images.`;updateTable();draw();}
+
+function updateTable(){updateRegions();$('objects').replaceChildren();frames[index].objects.forEach((o,i)=>{const tr=document.createElement('tr');if(i===selectedBox)tr.className='selected';const td=document.createElement('td'),b=document.createElement('button');b.textContent='#'+(i+1);b.setAttribute('aria-label','Inspecter la détection '+(i+1));b.onclick=()=>inspectBox(i);td.append(b);tr.append(td);for(const value of [`${names[o.class_name]||o.class_name} · ${fmt(o.confidence)}`,o.surface.xyz_m?fmt(o.surface.xyz_m[2])+' m':'Indisponible',`${o.motion_support.RESIDUAL_CANDIDATE} / ${o.motion_support.tracked_points}`,String(o.motion_support.UNKNOWN)]){const cell=document.createElement('td');cell.textContent=value;tr.append(cell);}$('objects').append(tr);});if(!frames[index].objects.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='Aucune détection à cette date.';tr.append(td);$('objects').append(tr);}}
+function clearSelection(){selectedRegion=null;selectedBox=null;selectedPoint=null;$('detailTitle').textContent='Inspection';$('detail').textContent='Cliquez sur une détection à gauche ou un point à droite. Aucun annotateur ni label à renseigner.';}
+function updateSensitivityMetric(){
+ const rows=data.clip_sensitivity;$('sensitivitySummary').hidden=!rows;if(!rows)return;
+ const row=rows[index];
+ if(!row){$('sensitivityMetric').textContent=index===0?'Sensibilité : comparaison indisponible sur la première image, sans pose précédente dans cet extrait.':'Sensibilité : diagnostic indisponible à cette date.';return;}
+ if(row.percent===null){$('sensitivityMetric').textContent='Sensibilité : comparaison indisponible, aucun point évaluable sous les deux poses.';return;}
+ $('sensitivityMetric').textContent=`Sensibilité à une hypothèse de pose : ${fmt(row.percent)} % (${row.changed} / ${row.evaluated} points évaluables sous les deux poses changent de statut). Pose précédente : T${row.previous_pose_image}. ${row.validity_changed} point(s) changent de disponibilité de projection. Seuil résiduel conservé : 3 px.`;
+}
+function show(i){index=Math.max(0,Math.min(frames.length-1,i));clearSelection();posePoint=null;const f=frames[index];$('seek').value=index;$('frameMeta').textContent=`Image ${index+1} / ${frames.length} · t=${f.timestamp_us} µs · ${f.offset_ms} ms par rapport à la dernière image · calcul enregistré : ${fmt(f.compute_ms,0)} ms`;
+ const count=s=>f.tracks.filter(p=>p.status===s).length;$('sceneCounts').textContent=`Scène entière : ${count('RESIDUAL_CANDIDATE')} points résiduels · ${count('MODEL_CONSISTENT')} compatibles · ${count('UNKNOWN')} inconnus. Modèle ${f.model_valid?'disponible, sans validation de la pose caméra':'indisponible'}.`;
+ $('first').disabled=$('prev').disabled=index===0;$('last').disabled=$('next').disabled=index===frames.length-1;updateSensitivityMetric();updateTable();draw();drawPoseComparison();}
+function seek(i){pause();show(i);}
+$('first').onclick=()=>seek(0);$('last').onclick=()=>seek(frames.length-1);$('prev').onclick=()=>seek(index-1);$('next').onclick=()=>seek(index+1);$('play').onclick=toggle;$('seek').max=frames.length-1;$('seek').oninput=e=>seek(Number(e.target.value));$('clear').onclick=()=>{pause();clearSelection();posePoint=null;updateTable();draw();drawPoseComparison();};$('speed').onchange=()=>{if(timer!==null){pause();toggle();}};
+for(const id of ['boxes','points','candidates','regions'])$(id).onchange=draw;
+function position(e,canvas){const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height];}
+native.onclick=e=>{if(!$('boxes').checked)return;const [x,y]=position(e,native),hits=frames[index].objects.map((o,i)=>({o,i})).filter(({o})=>x>=o.native_xyxy[0]&&x<=o.native_xyxy[2]&&y>=o.native_xyxy[1]&&y<=o.native_xyxy[3]);hits.sort((a,b)=>(a.o.native_xyxy[2]-a.o.native_xyxy[0])*(a.o.native_xyxy[3]-a.o.native_xyxy[1])-(b.o.native_xyxy[2]-b.o.native_xyxy[0])*(b.o.native_xyxy[3]-b.o.native_xyxy[1]));if(hits.length)inspectBox(hits[0].i);};
+motion.onclick=e=>{if(!$('points').checked)return;const [x,y]=position(e,motion);let best=-1,distance=12;frames[index].tracks.forEach((p,i)=>{if($('candidates').checked&&p.status!=='RESIDUAL_CANDIDATE')return;const d=Math.hypot(p.current[0]-x,p.current[1]-y);if(d<distance){distance=d;best=i;}});if(best>=0)inspectPoint(best);};
+function drawPoseComparison(){
+ const active=!!sensitivity&&index===sensitivity.frame_index;$('posePanel').hidden=!active;if(!active)return;
+ const f=frames[index],s=sensitivity;
+ $('poseCounts').textContent=`Même image ${s.target_image} : ${s.original_candidates} candidats enregistrés, ${s.hypothesis_candidates} avec la pose précédente. ${s.changed} / ${s.evaluated} points évalués changent de statut : ${s.candidates_to_consistent} deviennent compatibles, ${s.consistent_to_candidates} deviennent candidats.`;
+ $('poseOriginalTitle').textContent=`Image ${s.target_image} · pose T${s.target_image} enregistrée`;
+ $('poseHypothesisTitle').textContent=`Image ${s.target_image} · pose T${s.previous_pose_image} : hypothèse`;
+ for(const [id,tracks,regions] of [['poseOriginal',f.tracks,f.regions],['poseHypothesis',s.tracks,s.regions]]){
+  const ctx=$(id).getContext('2d');ctx.clearRect(0,0,640,480);if(images[index])ctx.drawImage(images[index][1],0,0);
+  ctx.strokeStyle='#ffb634';ctx.lineWidth=2;ctx.setLineDash([7,4]);regions.forEach(r=>{const [x1,y1,x2,y2]=r.xyxy;ctx.strokeRect(x1,y1,x2-x1,y2-y1);});ctx.setLineDash([]);
+  tracks.forEach((p,i)=>{if($('changedOnly').checked&&!s.tracks[i].changed)return;ctx.fillStyle=colors[p.status];ctx.beginPath();ctx.arc(...f.tracks[i].current,p.status==='RESIDUAL_CANDIDATE'?3:2,0,Math.PI*2);ctx.fill();});
+  if(posePoint!==null){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(...f.tracks[posePoint].current,8,0,Math.PI*2);ctx.stroke();}
+ }
+ if(posePoint===null){$('poseDetail').textContent='Cliquez sur un point dans l’une des deux images pour comparer ses résidus.';return;}
+ const original=f.tracks[posePoint],hypothesis=s.tracks[posePoint];
+ $('poseDetail').textContent=`Point ${posePoint+1} de cette image : résultat enregistré ${fmt(original.residual)}${original.residual===null?'':' px'} (${labels[original.status]}) ; hypothèse ${fmt(hypothesis.residual)}${hypothesis.residual===null?'':' px'} (${labels[hypothesis.status]}). ${hypothesis.changed?'Le statut change.':'Le statut reste identique.'} Aucun des deux statuts ne confirme la mobilité.`;
+}
+if(sensitivity){$('comparePose').hidden=false;$('comparePose').textContent=`Comparer les poses · image ${sensitivity.target_image}`;}
+$('comparePose').onclick=()=>{if(!sensitivity)return;seek(sensitivity.frame_index);$('posePanel').scrollIntoView({block:'start'});};
+$('changedOnly').onchange=()=>{posePoint=null;drawPoseComparison();};
+$('firstChanged').onclick=()=>{pause();posePoint=sensitivity.tracks.findIndex(p=>p.changed);if(posePoint<0)posePoint=null;drawPoseComparison();};
+$('nextChanged').onclick=()=>{pause();const ids=sensitivity.tracks.flatMap((p,i)=>p.changed?[i]:[]);posePoint=ids.find(i=>posePoint===null||i>posePoint)??ids[0]??null;drawPoseComparison();};
+for(const id of ['poseOriginal','poseHypothesis'])$(id).onclick=e=>{
+ if(!sensitivity||index!==sensitivity.frame_index)return;pause();const [x,y]=position(e,$(id));let best=null,distance=12;
+ frames[index].tracks.forEach((p,i)=>{if($('changedOnly').checked&&!sensitivity.tracks[i].changed)return;const d=Math.hypot(p.current[0]-x,p.current[1]-y);if(d<distance){distance=d;best=i;}});
+ if(best!==null){posePoint=best;drawPoseComparison();}
+};
+document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(document.activeElement.tagName))return;if(e.code==='Space'){if(document.activeElement.tagName==='BUTTON')return;e.preventDefault();toggle();}else if(e.key==='ArrowLeft'){e.preventDefault();seek(index-1);}else if(e.key==='ArrowRight'){e.preventDefault();seek(index+1);}else if(e.key==='Home'){e.preventDefault();seek(0);}else if(e.key==='End'){e.preventDefault();seek(frames.length-1);}});
+async function init(){const controls=document.querySelectorAll('button,input,select');controls.forEach(el=>el.disabled=true);$('frameMeta').textContent='Chargement des images…';try{images=await Promise.all(frames.map(f=>Promise.all([f.native,f.rectified].map(src=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src;})))));controls.forEach(el=>el.disabled=false);show(0);}catch(error){$('frameMeta').textContent='Impossible de charger les images intégrées.';}}
+init();
+</script>
+</html>

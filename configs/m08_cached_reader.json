@@ -1,0 +1,18 @@
+{
+  "experiment": "M08",
+  "status": "FIXED_BEFORE_BENCHMARK",
+  "source_segments": "outputs/motion/M07_12s/summary.json",
+  "sequences": ["zurich_city_04_b", "zurich_city_04_e"],
+  "allowed_split": "train",
+  "paired_steps_us": [10000, 20000],
+  "paced_step_us": 10000,
+  "paced_repeats": 2,
+  "warmup_us": 200000,
+  "max_wall_seconds_per_case": 120,
+  "variants": ["indexed", "cached"],
+  "optimization": "Keep four HDF5 dataset handles alive; retain inherited exact slicing and all validation",
+  "paired_order": "Alternate first reader and detector every window; equality checks outside measured calls",
+  "paced_order": "Separate full runs per reader, reverse case order in repeat 2",
+  "cache_policy": "No OS cache flush; fresh reader/detector per case; retain and report HDF5 per-dataset cache limits",
+  "quality": "Exact array and detector-output equivalence required; not a motion-accuracy experiment"
+}

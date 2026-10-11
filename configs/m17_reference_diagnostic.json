@@ -1,0 +1,17 @@
+{
+  "experiment": "M17",
+  "reference": "outputs/motion/M16/audit/verified_sample.json",
+  "source_manifest": "configs/pilot.json",
+  "normalizer": "outputs/stereo/S01/normalizer.json",
+  "stereo_reference_config": "outputs/stereo/S01/config.json",
+  "window_us": 50000,
+  "step_us": 20000,
+  "roi_margins_px": [-5, 0, 5],
+  "selection": "All six M16 verified train dates, including startup abstentions",
+  "geometry": "camRect0; boxes from rotation-only projected RGB, finite-depth parallax unresolved",
+  "association": "Current track endpoint in half-open xyxy box; overlaps explicitly shared; no object detections or IoU metric",
+  "depth": "S01 stereo recomputed at previous timestamp, never GT; no stale-depth reuse",
+  "temporal_limit": "50 ms causal windows shifted 20 ms, overlap 30 ms; insufficient history remains unknown",
+  "annotation_policy": "Reference boxes used only after model estimation; not used to seed tracks or select camera inliers",
+  "quality": "Support diagnostic on train, not object precision/recall; unlabeled area is not verified static background"
+}

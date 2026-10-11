@@ -1,0 +1,19 @@
+{
+  "experiment": "M07",
+  "status": "FIXED_BEFORE_RUN",
+  "sequences": ["zurich_city_04_b", "zurich_city_04_e"],
+  "allowed_split": "train",
+  "revision": 2,
+  "revision_reason": "Local source files span 13.401 seconds; initial 20-second run failed before processing any measured window. Use centered 12-second segments.",
+  "duration_us": 12000000,
+  "block_us": 3000000,
+  "warmup_us": 200000,
+  "steps_us": [10000, 20000],
+  "repeats": 2,
+  "max_wall_seconds_per_case": 120,
+  "selection": "Same centered 12-second segment per sequence, plus preceding warm-up; no labels used",
+  "algorithm": "Unchanged M01 ActivityDetector with M02 indexed reader",
+  "protocol": "Paced at recorded window-end availability; process every window; no rendering or disk writes during timed loop",
+  "scope": "Read and activity output age only; no camera acquisition, rendering, YOLO or stereo; not physical motion onset delay",
+  "cache_policy": "No cache flush; reopen reader/detector each case, 200 ms unpaced warm-up; reverse case order in repeat 2"
+}

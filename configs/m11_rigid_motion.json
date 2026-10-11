@@ -1,0 +1,12 @@
+{
+  "experiment": "M11",
+  "scope": "CONTROLLED_TWO_VIEW_3D_REFERENCE_NOT_EVENT_SENSOR_SIMULATION",
+  "seeds": [0, 1, 2, 3, 4],
+  "noise_px": [0.0, 0.2, 0.5],
+  "previous_us": 0,
+  "current_us": 20000,
+  "depth_source": "synthetic_reference",
+  "threshold_selection": "Engineering defaults fixed before campaign, not selected for real-data quality",
+  "real_motion_quality": null,
+  "note": "Exact synthetic depth except explicit missing/biased controls; no real camera or stereo accuracy implied"
+}

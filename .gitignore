@@ -1,0 +1,41 @@
+.venv/
+.venv-demo/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+node_modules/
+
+# Keep acquired data, model weights and generated experiments local.
+data/
+models/
+outputs/*
+Ultralytics/
+*.pt
+*.pth
+*.onnx
+*.h5
+*.npz
+*.zip
+*.rar
+*.7z
+
+# These hand-written diagnostic programs are source code, despite their location.
+!outputs/focused_truck/
+outputs/focused_truck/*
+!outputs/focused_truck/*.py
+
+# Local credentials and editor/OS files.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+Thumbs.db
+desktop.ini

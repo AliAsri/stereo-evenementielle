@@ -1,0 +1,22 @@
+{
+  "experiment": "M10",
+  "status": "FIXED_BEFORE_RUN",
+  "manifest": "outputs/motion/M03/annotation_manifest.json",
+  "sequence": "zurich_city_04_b",
+  "allowed_split": "train",
+  "step_us": 20000,
+  "warmup_us": 200000,
+  "candidate": {
+    "min_support": 4,
+    "min_direction_coherence": 0.8,
+    "max_box_area_fraction": 0.15,
+    "consecutive_observations": 3,
+    "association_iou": 0.15
+  },
+  "motion_model": "M03 default similarity and forward/backward checked LK correspondences",
+  "claim": "Persistent apparent residual candidates, NOT confirmed independent moving objects",
+  "parameter_selection": "Engineering defaults fixed before controls and train replay; not tuned to real quality",
+  "controls": "Ideal point correspondences; include a known static-depth-layer parallax failure and local rotation miss",
+  "render": "Comparison GIF at 10 Hz from 20 ms processing; offline recorded-data replay",
+  "quality_status": "PENDING_REVIEWED_MOTION_ANNOTATIONS"
+}
