@@ -4,15 +4,15 @@ PFE de Master : distinguer le mouvement des objets de celui de la caméra, puis 
 
 ## Contenu du dépôt et démarrage
 
-[Dépôt public GitHub](https://github.com/AliAsri/pfe-stereo-evenementielle).
+[Dépôt public GitHub](https://github.com/AliAsri/stereo-evenementielle).
 
-Le dépôt contient le code, les tests, les configurations, les notebooks, les documents techniques et leur copie dans `markdowns/`. Les neuf programmes de diagnostic placés directement dans `outputs/focused_truck/` sont également versionnés. Les environnements Python, données DSEC, poids YOLO, archives et résultats générés restent locaux. Les liens vers `data/` et les résultats sous `outputs/` nécessitent donc les artefacts locaux ; cloner ce dépôt ne télécharge pas la démonstration ni les données.
+Le dépôt contient le code, les tests, les configurations, le notebook actuel, la cellule de diagnostic YOLO et les documents techniques. Les neuf programmes de diagnostic sont dans `scripts/diagnostics/`. Les copies régénérables `markdowns/`, anciens notebooks, avis externes bruts, supports de réunion, environnements Python, données DSEC, poids YOLO et résultats générés restent locaux. Les liens vers `data/` et les résultats sous `outputs/` nécessitent donc les artefacts locaux ; cloner ce dépôt ne télécharge pas la démonstration ni les données.
 
 Configuration vérifiée sous Windows avec Python 3.14.6. Depuis la racine, dans PowerShell :
 
 ```powershell
-git clone https://github.com/AliAsri/pfe-stereo-evenementielle.git
-cd pfe-stereo-evenementielle
+git clone https://github.com/AliAsri/stereo-evenementielle.git
+cd stereo-evenementielle
 py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-inspection-lock.txt
 .\.venv\Scripts\python.exe scripts/check_project.py --output outputs/checks/initial
@@ -20,7 +20,7 @@ py -3.14 -m venv .venv
 
 Le dossier passé à `--output` doit être neuf. Ces contrôles n'exigent ni téléchargement DSEC ni entraînement YOLO. L'inférence complète utilise un environnement distinct, créé avec `.venv-demo` et `requirements-demo-lock.txt`, ainsi que les données et poids déjà préparés : son exécution n'est pas autonome après un simple clonage. Les étapes historiques de préparation sont documentées dans `docs/` ; ne pas relancer tous les scripts indistinctement.
 
-Les illustrations événementielles dans `docs/assets/reunion_simple/` sont issues de DSEC et de nos traitements. Source : [DSEC, Université de Zurich / ETH Zurich](https://dsec.ifi.uzh.ch/), données sous [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Cette attribution concerne ces données et illustrations dérivées.
+Les données et illustrations événementielles conservées localement sont issues de DSEC et de nos traitements. Source : [DSEC, Université de Zurich / ETH Zurich](https://dsec.ifi.uzh.ch/), données sous [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Cette attribution concerne ces données et illustrations dérivées.
 
 **Décision du 10 octobre 2026 : simplifier.** Un extrait DSEC, une configuration existante, un affichage compréhensible. EMatch, les nouveaux datasets et les optimisations supplémentaires sont en pause. Les résultats antérieurs sont conservés.
 
@@ -56,4 +56,4 @@ Les cadres orange regroupent les points résiduels, indépendamment de YOLO : 22
 - Code dans `src/pfe_events/`, commandes dans `scripts/`, résultats dans `outputs/`.
 - Environnement local existant : `.venv`; apprentissage YOLO sur Colab. Aucune annotation manuelle demandée.
 
-Après modification des documents : `.\.venv\Scripts\python.exe scripts/sync_markdowns.py`. Les copies sont conservées dans `markdowns/` avec les mêmes chemins relatifs.
+Après modification des documents : `.\.venv\Scripts\python.exe scripts/sync_markdowns.py`. Les copies sont conservées localement dans `markdowns/` avec les mêmes chemins relatifs ; ce miroir régénérable est ignoré par Git.

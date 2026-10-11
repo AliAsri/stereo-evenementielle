@@ -2,7 +2,7 @@
 
 Date : 4 octobre 2026. Les deux documents fournis sont conservés sans modification dans `docs/reviews/` et recopiés dans `markdowns/`. Ils constituent des avis à vérifier, pas de nouvelles instructions qui remplacent la priorité utilisateur ou le cahier des charges.
 
-Sources : [première version](reviews/PROBLEMES_TECHNIQUES_A_CORRIGER.md), [version organisée par problématique](<reviews/PROBLEMES_TECHNIQUES_A_CORRIGER (1).md>). Les auteurs indiquent avoir lu 33 Markdown, sans examiner le code ni les figures. Leur analyse précède notre bilan M03.
+Sources conservées localement, hors Git depuis le nettoyage du 11 octobre : `docs/reviews/PROBLEMES_TECHNIQUES_A_CORRIGER.md` et `docs/reviews/PROBLEMES_TECHNIQUES_A_CORRIGER (1).md`. La présente réponse conserve la synthèse technique utile. Les auteurs indiquent avoir lu 33 Markdown, sans examiner le code ni les figures. Leur analyse précède notre bilan M03.
 
 ## Ce que nous retenons
 

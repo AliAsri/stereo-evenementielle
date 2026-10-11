@@ -1,5 +1,7 @@
 # Consignes persistantes du projet
 
+- Décision utilisateur du 11 octobre 2026 : le dépôt public s'appelle `stereo-evenementielle`. Garder le miroir `markdowns/` synchronisé localement mais hors Git, ainsi que les archives, avis externes bruts et supports de réunion exclus par `.gitignore`. Les diagnostics maintenus sont dans `scripts/diagnostics/` ; `outputs/` est réservé aux résultats locaux. Ne pas supprimer les acquis locaux lors d'un nettoyage du dépôt.
+
 - Décision utilisateur du 11 octobre 2026 : mettre les nouvelles étapes en pause pour une revue globale, des contrôles et la correction des défauts confirmés. L'audit R02 est terminé ; attendre la reprise demandée par l'utilisateur avant le prochain diagnostic scientifique. Bilan et limites dans `docs/20_NEXT_STEPS.md`.
 
 - Décision utilisateur du 10 octobre 2026 : simplifier le projet. Mettre en pause EMatch, les nouveaux datasets, les comparaisons d'architectures et les optimisations supplémentaires. Priorité à un extrait DSEC, une configuration existante 50 ms et un affichage clair, pour comprendre la séparation objet/caméra avant d'ajouter des composants. Conserver tous les acquis. Maintenir `docs/20_NEXT_STEPS.md` comme page active de progression ; éviter de multiplier rapports et variantes. YOLO, stéréo et XYZ restent dans le livrable final. La zone d'inspection d'un extrait n'est pas une annotation de mobilité à chaque instant.

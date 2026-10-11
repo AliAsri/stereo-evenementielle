@@ -10,7 +10,7 @@ from pfe_events.geometry import audit_calibration
 from pfe_events.rigid_motion import estimate_rigid_motion
 from pfe_events.artifacts import write_json, sha256_file
 
-out = Path(__file__).resolve().parent / 'run_01'
+out = ROOT / 'outputs/focused_truck/run_01'
 report = json.loads((out / 'summary.json').read_text())
 inf = json.loads((out / '400000_inference.json').read_text())
 cal = audit_calibration(ROOT / 'data/raw/zurich_city_04_b/calibration/cam_to_cam.yaml')

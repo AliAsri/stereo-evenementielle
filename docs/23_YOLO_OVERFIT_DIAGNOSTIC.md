@@ -50,7 +50,7 @@ Le fichier peut aussi être copié intégralement dans une nouvelle cellule. Il 
 
 Le fichier repart des poids initiaux ; il n'utilise pas `resume=True` sur le checkpoint d'un entraînement terminé dont l'optimiseur a été retiré. Si le diagnostic passe, `OVERFIT_PASSED` est mis à True après le contrôle et la cellule 7 du notebook original peut être exécutée. Sinon il reste False et le pilote doit rester arrêté. Examiner les sorties avant de changer encore les paramètres.
 
-Si le runtime est perdu, utiliser le notebook principal actualisé depuis la préparation. La version initiale est conservée dans `notebooks/archive/Y01_yolo11n_events_pilot_v1.ipynb`. Il n'est pas nécessaire de régénérer ou transférer une nouvelle archive de données : le ZIP Y00 est inchangé.
+Si le runtime est perdu, utiliser le notebook principal actualisé depuis la préparation. La version initiale est conservée localement dans `notebooks/archive/Y01_yolo11n_events_pilot_v1.ipynb`, hors Git depuis le nettoyage du 11 octobre. Il n'est pas nécessaire de régénérer ou transférer une nouvelle archive de données : le ZIP Y00 est inchangé.
 
 ## Vérifications et statut
 

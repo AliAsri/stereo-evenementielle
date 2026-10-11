@@ -14,7 +14,7 @@ node_modules/
 # Keep acquired data, model weights and generated experiments local.
 data/
 models/
-outputs/*
+outputs/
 Ultralytics/
 *.pt
 *.pth
@@ -25,10 +25,14 @@ Ultralytics/
 *.rar
 *.7z
 
-# These hand-written diagnostic programs are source code, despite their location.
-!outputs/focused_truck/
-outputs/focused_truck/*
-!outputs/focused_truck/*.py
+# Generated Markdown mirror and local historical/meeting material.
+markdowns/
+notebooks/archive/
+docs/reviews/
+docs/assets/reunion_simple/
+docs/30_BILAN_REUNION_2.md
+docs/32_BILAN_REUNION_SIMPLE.md
+docs/33_QUESTIONS_ENCADRANT.md
 
 # Local credentials and editor/OS files.
 .env

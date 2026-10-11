@@ -4,7 +4,11 @@
 
 ## Versionnement GitHub — 11 octobre 2026
 
-À la demande de l'utilisateur, le projet est versionné dans le [dépôt public `AliAsri/pfe-stereo-evenementielle`](https://github.com/AliAsri/pfe-stereo-evenementielle), branche `main`. Le périmètre initial comprend 266 fichiers : sources, tests, configurations, notebooks, documentation, copies Markdown et illustrations existantes, soit environ 6,4 Mo avant compression Git. Les environnements `.venv` et `.venv-demo`, les données acquises, poids, archives et résultats générés sont exclus par `.gitignore` et conservés localement. Les neuf programmes Python directement dans `outputs/focused_truck/` sont inclus comme code source.
+À la demande de l'utilisateur, le dépôt public s'appelle désormais [`AliAsri/stereo-evenementielle`](https://github.com/AliAsri/stereo-evenementielle), branche `main`. La première publication comprenait 266 fichiers, soit environ 6,4 Mo avant compression Git. Le nettoyage retire du suivi Git 74 fichiers redondants ou réservés au travail local : miroir Markdown, ancien notebook, avis externes bruts, préparations de réunion et leurs illustrations. Ils restent sur le disque local ; l'historique Git antérieur est conservé. Le dépôt courant contient 192 fichiers.
+
+Les neuf programmes Python auparavant suivis dans `outputs/focused_truck/` sont maintenant dans `scripts/diagnostics/`, avec les chemins de leurs dépendances corrigés. Leurs anciens exemplaires restent locaux pour conserver la provenance des expériences. Les commandes de cette page utilisent les nouveaux chemins. Tout `outputs/` est désormais ignoré par Git, ainsi que les environnements Python, données acquises, poids et archives. `markdowns/` reste synchronisé à chaque modification documentaire, mais n'est plus publié. Le code utilisé, ses tests, le notebook actuel et la documentation technique utile sont conservés.
+
+Après rangement, les contrôles couvrent 111 fichiers Python et 37 aides CLI, avec 215 tests réussis. L'augmentation de couverture vient des neuf diagnostics désormais sous `scripts/` ; aucun algorithme n'a été ajouté. Les liens vers les documents et programmes suivis, les anciennes URL du dépôt et la conservation locale des fichiers retirés sont vérifiés. Le contenu de la version courante représente environ 1,33 Mo, hors historique Git.
 
 Une copie isolée des fichiers suivis par Git, sans `data/` ni les résultats historiques, passe les 215 tests, le contrôle de 102 fichiers Python et les 30 aides CLI avec l'interpréteur d'inspection existant. Cela vérifie l'autonomie des contrôles logiciels, pas celle de la démonstration complète, qui nécessite toujours les données et poids locaux. Le README explique cette distinction et l'installation. Cette mise en version ne reprend pas les expériences scientifiques mises en pause.
 
@@ -83,7 +87,7 @@ Un contrôle supplémentaire a retiré les 65 points de la boîte de l’estimat
 Pour reproduire le rejeu depuis la racine dans un dossier neuf :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/run_diagnostic.py --output outputs/focused_truck/run_02
+.\.venv\Scripts\python.exe scripts/diagnostics/run_diagnostic.py --output outputs/focused_truck/run_02
 ```
 
 ## Suite réalisée : regarder sur 100 ms
@@ -110,7 +114,7 @@ Le seuil fixe de 3 px correspond à 150 px/s sur 20 ms, mais 30 px/s sur 100 ms.
 Contrôles effectués : reproduction du suivi court à 0,0001 px près, conservation des identifiants et de la date de profondeur, résidus recalculés par reprojection, empreintes des entrées/sources et deux cas de suivi synthétiques contrôlés. Le code applicatif et les résultats précédents sont inchangés. La comparaison se reproduit dans un dossier neuf avec :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/compare_intervals.py --output outputs/focused_truck/interval_02
+.\.venv\Scripts\python.exe scripts/diagnostics/compare_intervals.py --output outputs/focused_truck/interval_02
 ```
 
 ## Action envisagée après reprise — en pause
@@ -139,7 +143,7 @@ Les points sont redétectés pour chaque paire : **ces 17 présences ne prouvent
 Les résidus des 17 paires ont été recalculés à partir des poses et profondeurs ; dates, identifiants, compteurs, empreintes et GIF vérifiés. La dernière paire reproduit exactement la comparaison 100 ms précédente. Aucun changement du code applicatif. Reproduction dans un dossier neuf :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/replay_100ms.py --output outputs/focused_truck/sliding_02
+.\.venv\Scripts\python.exe scripts/diagnostics/replay_100ms.py --output outputs/focused_truck/sliding_02
 ```
 
 ## Essai terminé : répartir les points utilisés pour la pose
@@ -274,7 +278,7 @@ Les 17 surfaces et les 16 IoU des cadres sont vérifiées indépendamment par pa
 Reproduction dans un dossier neuf, avec l'environnement existant :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/analyze_region_stability.py --output outputs/focused_truck/stability_02
+.\.venv\Scripts\python.exe scripts/diagnostics/analyze_region_stability.py --output outputs/focused_truck/stability_02
 ```
 
 ## Bascule 7 → 8 : forte sensibilité au modèle rigide
@@ -306,7 +310,7 @@ Vérifications : les projections et résidus originaux des images 7 et 8 sont re
 Reproduction dans un dossier neuf :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/analyze_pose_switch.py --output outputs/focused_truck/pose_switch_02
+.\.venv\Scripts\python.exe scripts/diagnostics/analyze_pose_switch.py --output outputs/focused_truck/pose_switch_02
 ```
 
 ## Comparaison de poses intégrée au lecteur
@@ -349,7 +353,7 @@ Vérifications : les projections originales des 17 images sont reproduites ; les
 Reproduction dans un dossier neuf :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/analyze_clip_sensitivity.py --output outputs/focused_truck/clip_sensitivity_02
+.\.venv\Scripts\python.exe scripts/diagnostics/analyze_clip_sensitivity.py --output outputs/focused_truck/clip_sensitivity_02
 ```
 
 ## Sensibilité par date affichée dans le lecteur
@@ -400,5 +404,5 @@ Vérifications : les ensembles forment une partition exacte des 264 points éval
 Reproduction dans un dossier neuf :
 
 ```powershell
-.\.venv\Scripts\python.exe outputs/focused_truck/analyze_pose_support.py --output outputs/focused_truck/pose_support_02
+.\.venv\Scripts\python.exe scripts/diagnostics/analyze_pose_support.py --output outputs/focused_truck/pose_support_02
 ```

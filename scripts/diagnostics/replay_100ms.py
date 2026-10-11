@@ -30,7 +30,7 @@ def main():
     saved=json.loads((source/'summary.json').read_text())
     assert old['status']==saved['status']=='COMPLETE'
     for name,digest in old['source_sha256'].items():assert sha256_file(ROOT/name)==digest,name
-    helper=ROOT/'outputs/focused_truck/compare_intervals.py'
+    helper=Path(__file__).with_name('compare_intervals.py')
     assert sha256_file(helper)==old['script_sha256']
     track_seeds=runpy.run_path(str(helper))['track_seeds']
     cal_path=ROOT/'data/raw/zurich_city_04_b/calibration/cam_to_cam.yaml'
