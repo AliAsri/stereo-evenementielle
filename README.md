@@ -4,8 +4,6 @@ Objectif : distinguer le mouvement d’un objet de celui de la caméra, lui asso
 
 **État au 19 octobre 2026 : prototype intégré sur données DSEC enregistrées.** Le temps réel et la détection fiable du mouvement indépendant restent à démontrer. [État actuel et prochaines étapes](docs/20_NEXT_STEPS.md) · [Audit technique et scientifique](docs/AUDIT_TECHNIQUE_SCIENTIFIQUE_18_OCTOBRE_2026.md) · [Historique depuis le début](docs/19_PROGRESS.md).
 
-La [préparation de validation du 19 octobre](docs/38_OBJECTIF_OBJETS_MOBILES.md#validation-indépendante-proposée--19-octobre-2026) propose deux nouveaux enregistrements publics, mobile et rigide, pour contrôler la compensation avec profondeur oracle. Leur acquisition bornée a atteint le plafond de 512 Mio sans obtenir les fichiers cibles ; ces nouvelles références restent non qualifiées, sans résultat de qualité. ORB a été testé puis écarté, sans intégration DSEC.
-
 ## Un parcours principal
 
 Depuis la racine, sur le poste où les données et l’environnement sont préparés :
@@ -22,15 +20,14 @@ Y02 personne/voiture/camion est disponible avec `--weights outputs/colab/Y02_202
 
 ## Résultats et limites
 
-| Mesure | Résultat | Portée |
+| Objectif | État observé | Limite |
 |---|---|---|
-| YOLO, validation personne/voiture | Y02 mAP50 **38,52 %** ; Y01 **23,73 %** | Même validation de 238 images ; aucune référence camion. |
-| Rejeu Y02 de 17 images | **83 occurrences**, **74 surfaces**, **9 abstentions** ; camion présent dans les 17 sorties | Extrait du train, pas une validation indépendante ni un nombre d’objets uniques. |
-| Dernier rejeu CPU Y02 (17 octobre) | **257,8 ms** de calcul médian pour un pas source de **20 ms** | Hors initialisation, rendu et export ; pas de temps réel. |
-| Dernier contrôle CPU Y01, buffers de rectification (19 octobre) | Calcul jusqu’au mouvement **135,3→103,8 ms** médians ; calcul complet **266,5→224,2 ms** | Comparaison unique, autres coûts variables ; 34 fenêtres résidentes isolent une rectification de 39,77→32,25 ms, toujours 17/17 hors budget intégré. |
-| Contrôle antérieur, contexte 20→100 ms (18 octobre) | Calcul médian **277,6→225,1 ms** | Comparaison distincte ; 100 ms désigne la période dataset, pas une cadence réelle tenue. |
-| Contexte moins fréquent | **17→4 appels YOLO/XYZ**, 18 occurrences fraîches, 15 surfaces et 3 abstentions | Seulement les quatre dates de contexte ; aucun rappel garanti entre ces dates. |
-| Non-régression du mouvement | **153 tableaux, 17 modèles de mouvement et quatre contextes communs identiques** | Conservation des sorties comparables, pas validation de leur exactitude physique. |
+| Rapidité locale, dernier contrôle Y01 | Mouvement **103,8 ms**, calcul complet **224,2 ms** médians | 17/17 dates au-dessus du budget de 20 ms ; une session hors ligne. |
+| Détection du mouvement | Candidats résiduels, compensation caméra et abstentions | Mobilité indépendante non validée. |
+| Classes et 3D | Y01 personne/voiture par défaut ; contexte YOLO/XYZ toutes les 100 ms dataset | Camion Y02 non qualifié indépendamment ; surface 3D pouvant appartenir au fond. |
+| Reproduction | 153 tableaux et 17 résultats exacts dans un dossier isolé, pour la version contrôlée | Environnement Python partagé ; installation neuve encore à vérifier. |
+
+Les comparaisons de vitesse, métriques YOLO, essais écartés et références en attente sont conservés dans [l’état actif](docs/20_NEXT_STEPS.md) et [l’historique](docs/19_PROGRESS.md).
 
 Une boîte YOLO indique une classe. Un point orange indique un résidu supérieur à 3 px après compensation ; un point vert est compatible avec le modèle, un point gris reste inconnu. **Aucun de ces éléments ne prouve seul le mouvement propre.** XYZ désigne une surface échantillonnée pouvant appartenir au fond, pas le centre d’un objet.
 

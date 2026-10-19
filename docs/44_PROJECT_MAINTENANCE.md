@@ -1,5 +1,11 @@
 # Organisation, revue et maintenance
 
+## Nettoyage du dépôt — 19 octobre 2026
+
+Après publication `480332d`, inventaire Git : **205 fichiers, 1 990 819 octets de contenu**, aucun fichier de plus de 1 Mo et aucun doublon exact par SHA-256. Ce volume exclut l'historique Git, les environnements, données, poids et résultats ignorés. Les anciens lecteurs, outils d'annotation et diagnostics encore référencés sont conservés pour la reproductibilité ; aucune expérience locale supprimée.
+
+README recentré sur le parcours principal et quatre objectifs ; les chiffres historiques restent dans les documents existants. Exclusions complétées pour les caches, rapports de couverture, environnements de test et dossiers racine de construction/distribution. Les dossiers `output/` et `tmp/` étaient déjà exclus lors du push précédent. Aucun code scientifique, test, configuration ou fichier de données supprimé ou déplacé. Vérification des exclusions et synchronisation Markdown ; pas de nouvelle inférence ni répétition de la suite de tests pour ce changement documentaire.
+
 ## Revue globale du 15 octobre 2026
 
 **Verdict : les composants choisis restent cohérents avec le sujet, mais le livrable scientifique n’est pas encore validé.** Le projet possède une chaîne réelle événements → YOLO → stéréo → surface 3D → indices de mouvement. Il ne démontre pas encore la détection rapide et fiable d’un mouvement indépendant de la caméra. La suite doit produire cette preuve ou exposer précisément sa limite, plutôt qu’accumuler des variantes.
