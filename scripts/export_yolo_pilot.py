@@ -1,4 +1,4 @@
-"""Export a bounded two-class DSEC event-frame dataset and portable Colab ZIP."""
+"""Export a bounded DSEC event-frame dataset and portable Colab ZIP."""
 
 import argparse
 import json
@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from pfe_events.artifacts import write_unicode_json as save_json
 from pfe_events.dsec import DSECReader
-from pfe_events.detection import CLASS_MAP, CLASS_NAMES, convert_boxes, labels_to_text
+from pfe_events.detection import CLASS_MAP, CLASS_NAMES, TRUCK_CLASS_MAP, TRUCK_CLASS_NAMES, convert_boxes, labels_to_text
 from pfe_events.pilot import load_manifest, unique_file
 from pfe_events.representations import polarity_counts, normalized_event_image
 from verify_yolo_export import sha256, verify
@@ -26,7 +26,10 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT/"data/processed/dsec_yolo_pilot_v1")
     parser.add_argument("--manifest", type=Path, default=ROOT/"configs/pilot.json")
     parser.add_argument("--normalizer", type=Path, default=ROOT/"outputs/stereo/S01/normalizer.json")
+    parser.add_argument("--include-truck", action="store_true", help="Prepare person/car/truck; truck validation may be unavailable")
     args = parser.parse_args()
+    class_map = TRUCK_CLASS_MAP if args.include_truck else CLASS_MAP
+    class_names = TRUCK_CLASS_NAMES if args.include_truck else CLASS_NAMES
     output = args.output.resolve()
     archive = output.with_suffix(".zip")
     if output.exists() or archive.exists():
@@ -64,7 +67,7 @@ def main():
                 end = int(end)
                 source_indices = np.flatnonzero(boxes["t"] == end)
                 selected = boxes[source_indices]
-                labels, kept, stats = convert_boxes(selected)
+                labels, kept, stats = convert_boxes(selected, class_map=class_map)
                 events = reader.window(end-50_000, end)
                 counts = polarity_counts(events)
                 image = normalized_event_image(counts, normalizer)
@@ -90,9 +93,9 @@ def main():
                     for cls, cx, cy, w, h in labels:
                         x1, y1, x2, y2 = (cx-w/2)*640, (cy-h/2)*480, (cx+w/2)*640, (cy+h/2)*480
                         draw.rectangle((x1, y1, x2, y2), outline=(0, 255, 0), width=2)
-                        draw.text((x1, max(0, y1-12)), CLASS_NAMES[int(cls)], fill="white")
+                        draw.text((x1, max(0, y1-12)), class_names[int(cls)], fill="white")
                     canvas.save(output/"previews"/f"{name}.png")
-                    save_json(output/"previews"/f"{name}.json", {"image": image_relative, "person_boxes": pedestrian_count, "meaning": "official labels after two-class export, NOT predictions"})
+                    save_json(output/"previews"/f"{name}.json", {"image": image_relative, "person_boxes": pedestrian_count, "meaning": "official labels after class conversion, NOT predictions"})
                 if (i+1) % 50 == 0 or i+1 == len(eligible):
                     print(f"{name}: {i+1}/{len(eligible)}", flush=True)
         if split == "train":
@@ -101,15 +104,16 @@ def main():
                           "incomplete_windows_skipped": len(times)-len(seq_frames), "conversion": totals,
                           "source_labels_sha256": sha256(label_path), "source_labels": str(label_path.relative_to(ROOT)),
                           "archives": json.loads((folder/"downloads.json").read_text())})
-    (output/"data.yaml").write_text(yaml.safe_dump({"train": "images/train", "val": "images/val", "names": CLASS_NAMES}), encoding="utf-8")
+    (output/"data.yaml").write_text(yaml.safe_dump({"train": "images/train", "val": "images/val", "names": class_names}), encoding="utf-8")
     (output/"overfit.txt").write_text("".join(f"./{p}\n" for p in overfit), encoding="utf-8")
     shutil.copy2(args.normalizer, output/"normalizer.json")
     shutil.copy2(Path(__file__).with_name("verify_yolo_export.py"), output/"verify_yolo_export.py")
-    (output/"NOTICE.txt").write_text("Derived from DSEC and DSEC-Detection, University of Zurich/ETH Zurich.\nSources: https://dsec.ifi.uzh.ch/ and https://github.com/uzh-rpg/dsec-det\nDSEC data: CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/\nLocal event accumulations and YOLO label conversion; no RGB camera images.\nOther classes are background in this two-class pilot. Not the official benchmark split.\n", encoding="utf-8")
+    (output/"NOTICE.txt").write_text("Derived from DSEC and DSEC-Detection, University of Zurich/ETH Zurich.\nSources: https://dsec.ifi.uzh.ch/ and https://github.com/uzh-rpg/dsec-det\nDSEC data: CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/\nLocal event accumulations and YOLO label conversion; no RGB camera images.\nExcluded classes become background. Not the official benchmark split.\nClasses: "+", ".join(class_names.values())+"\nMissing validation classes cannot be evaluated.\n", encoding="utf-8")
     code = [Path(__file__), Path(__file__).with_name("verify_yolo_export.py"), *sorted((ROOT/"src/pfe_events").glob("*.py"))]
     manifest = {"experiment": "Y00", "status": "COMPLETE", "window_us": 50_000, "resolution": [640, 480],
                 "coordinate_frame": "native event-left", "png_rgb_channels": ["positive", "negative", "total"],
-                "class_mapping": CLASS_MAP, "names": CLASS_NAMES, "other_classes": "excluded labels become background; rider is not person",
+                "class_mapping": class_map, "names": class_names, "other_classes": "excluded labels become background; rider is not person",
+                "allowed_missing_validation_classes": [2] if args.include_truck else [],
                 "box_policy": "clip to sensor; reject invalid/empty; remove exact rounded duplicates; no minimum size",
                 "date_policy": "all distinct official annotation timestamps with full left window; no synthesized unlabelled negatives",
                 "normalizer_sha256": sha256(args.normalizer), "source_manifest": source_manifest,
@@ -122,12 +126,14 @@ def main():
         for path in sorted(output.rglob("*")):
             if path.is_file():
                 z.write(path, (Path(output.name)/path.relative_to(output)).as_posix())
-    report = {"experiment": "Y00", "status": "EXPORTED_AND_VERIFIED", "verification": verification,
+    report = {"experiment": "Y00_TRUCK" if args.include_truck else "Y00", "status": "EXPORTED_AND_VERIFIED", "verification": verification,
+              "names": class_names,
               "sequences": sequences, "normalizer_sha256": sha256(args.normalizer),
               "archive": str(archive.relative_to(ROOT)), "archive_bytes": archive.stat().st_size,
               "archive_sha256": sha256(archive), "manifest_sha256": sha256(output/"manifest.json"),
               "model_training": "NOT RUN"}
-    save_json(ROOT/"outputs/reports/Y00_export.json", report)
+    report_name = "Y00_truck_export.json" if args.include_truck else "Y00_export.json"
+    save_json(ROOT/"outputs/reports"/report_name, report)
     print(json.dumps({k: v for k, v in report.items() if k != "sequences"}, indent=2), flush=True)
 
 

@@ -38,7 +38,13 @@ def mapped_roi(box, mapping, shape, fraction=1.0):
     xy = mapping[low[1]:high[1], low[0]:high[0]].reshape(-1, 2)
     inside = (np.isfinite(xy).all(axis=1) & (xy >= 0).all(axis=1)
               & (xy <= [shape[1]-1, shape[0]-1]).all(axis=1))
-    return np.unique(np.rint(xy[inside]).astype(int), axis=0)
+    pixels = np.rint(xy[inside]).astype(int)
+    # Scalar integer sorting avoids the expensive structured (x,y) row sort.
+    # Encode x first to preserve np.unique(axis=0)'s lexicographic order: the
+    # downstream nearest-surface tie break depends on this exact ordering.
+    height = int(np.ceil(shape[0]))
+    keys = np.unique(pixels[:, 0]*height + pixels[:, 1])
+    return np.column_stack((keys//height, keys%height))
 
 
 def associate_surface(box, mapping, disparity, valid, q, *, detection_us,

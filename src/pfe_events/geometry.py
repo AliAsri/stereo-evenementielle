@@ -6,7 +6,7 @@ import numpy as np
 import yaml
 
 
-def audit_calibration(path: str | Path):
+def audit_calibration(path: str | Path, *, require_canonical=False):
     """Validate the DSEC event pair and return measured calibration parameters."""
     calibration = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     extrinsics = calibration["extrinsics"]
@@ -22,15 +22,30 @@ def audit_calibration(path: str | Path):
     q = np.asarray(calibration["disparity_to_depth"]["cams_03"], dtype=np.float64)
     left = calibration["intrinsics"]["camRect0"]
     right = calibration["intrinsics"]["camRect3"]
+    for camera in (left, right):
+        intrinsics = np.asarray(camera["camera_matrix"], dtype=float)
+        resolution = np.asarray(camera["resolution"])
+        if (intrinsics.shape != (4,) or not np.isfinite(intrinsics).all()
+                or np.any(intrinsics[:2] <= 0)):
+            raise ValueError("Finite positive focal lengths and finite principal point required")
+        if (resolution.shape != (2,) or resolution.dtype.kind not in 'iu'
+                or np.any(resolution <= 0)):
+            raise ValueError("Positive integer camera resolution required")
+    if left['resolution'] != right['resolution']:
+        raise ValueError("Rectified event cameras must have the same resolution")
     fx, fy, cx, cy = left["camera_matrix"]
     if q.shape != (4, 4) or not np.isfinite(q).all() or q[3, 2] <= 0:
         raise ValueError("Unsupported or invalid event Q matrix")
     baseline = float(np.linalg.norm(chain[:3, 3]))
+    if not np.isfinite(baseline) or baseline <= 0:
+        raise ValueError("Positive finite stereo baseline required")
     baseline_q = float(1 / q[3, 2])
     if not np.isclose(baseline, baseline_q, rtol=1e-5):
         raise ValueError("Extrinsics and Q imply different baselines")
     expected_q = np.array([[1, 0, 0, -cx], [0, 1, 0, -cy], [0, 0, 0, fx], [0, 0, 1/baseline, 0]], dtype=float)
     canonical = bool(np.allclose(q, expected_q) and np.isclose(fx, fy) and np.allclose(left["camera_matrix"], right["camera_matrix"]))
+    if require_canonical and not canonical:
+        raise ValueError("Unsupported event geometry: canonical Q and equal rectified intrinsics required")
     return {"fx_px": fx, "fy_px": fy, "cx_px": cx, "cy_px": cy, "baseline_m": baseline, "baseline_from_q_m": baseline_q, "canonical_equal_intrinsics": canonical, "q": q.tolist(), "resolution": left["resolution"]}
 
 

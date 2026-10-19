@@ -19,7 +19,7 @@ class RigidMotionConfig:
     ransac_px: float = 1.5
     residual_px: float = 3.0
     iterations: int = 500
-    seed: int = 42
+    seed: int = 42  # Legacy metadata only; classic OpenCV PnP owns its fixed RNG.
     max_interval_us: int = 100_000
 
 
@@ -34,6 +34,8 @@ def estimate_rigid_motion(previous, current, depth_m, intrinsic, *, previous_us,
     No future frame, depth interpolation or stale-depth reuse is performed.
     """
     c = config
+    if type(c.seed) is not int or c.seed != 42:
+        raise ValueError('seed is legacy metadata fixed at 42; this OpenCV PnP backend does not expose its RANSAC seed')
     integers = (c.min_points, c.min_inliers, c.iterations, c.seed, c.max_interval_us)
     if (any(type(v) is not int for v in integers) or c.min_points < 6
             or c.min_inliers < 6 or c.min_inliers > c.min_points
@@ -81,7 +83,8 @@ def estimate_rigid_motion(previous, current, depth_m, intrinsic, *, previous_us,
     if singular[0] <= 0 or singular[1] / singular[0] < 1e-4:
         out['status'] = 'DEGENERATE_3D_SUPPORT'
         return out
-    cv2.setRNGSeed(c.seed)
+    # OpenCV 4.14 classic RANSACPointSetRegistrator uses a local RNG(-1).
+    # setRNGSeed would reset unrelated global randomness without controlling it.
     try:
         ok, rotation, translation, inliers = cv2.solvePnPRansac(
             xyz, np.ascontiguousarray(q[ids]), k, None,

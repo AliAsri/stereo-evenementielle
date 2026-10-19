@@ -1,4 +1,37 @@
-# Y00 — Export YOLO vérifié et notebook Colab Y01
+# Exports YOLO et entraînement Colab
+
+## Extension Y02 personne / voiture / camion — 15 octobre 2026
+
+**Entraînement Y02 exécuté dans Colab et résultats importés le 15 octobre.** Le run `Y02_20261015T134856Z` est complet : 100 époques de surapprentissage puis cinq époques du pilote. AP50 du petit lot : 0,995 par classe ; mAP50 de validation personne/voiture : 0,385203, mAP50–95 : 0,200357. AP camion indépendante : non évaluée. Les fichiers correspondent au paquet ci-dessous. Le rejeu intégré détecte le camion sur les 17 images du train ; le modèle reste sélectionné explicitement avec `--weights`, Y01 conservant sa place de référence par défaut. [Audit des archives](../outputs/reports/Y02_colab_audit.json) · [Résultats intégrés et coût](../outputs/yolo/Y02_comparison/verification.json). Y02 conserve YOLO11n, les images natives, les fenêtres de 50 ms, le normaliseur et les partitions existants. Le mapping devient DSEC 0 → person 0, DSEC 2 → car 1, DSEC 4 → truck 2, conformément au [format officiel DSEC-Detection](https://github.com/uzh-rpg/dsec-det#data-format). Les autres classes sont toujours exclues.
+
+Fichiers à utiliser :
+
+- [Y02_yolo11n_truck.ipynb](../notebooks/Y02_yolo11n_truck.ipynb).
+- [dsec_yolo_truck_v1.zip](../data/processed/dsec_yolo_truck_v1.zip), 158 630 744 octets, environ 159 Mo. SHA-256 : `764e1523cca22ddb10abe9548a733d8969fb070205004f430a2899247f89c1ac`.
+
+Pour lancer l'essai :
+
+1. Importer le notebook Y02 dans Colab et sélectionner un runtime GPU.
+2. Placer le ZIP dans `Mon Drive/PFE3/data/`, ou utiliser le téléversement proposé par le notebook.
+3. Exécuter les cellules dans l'ordre et autoriser le montage de votre Drive. Le ZIP et les tenseurs sont vérifiés avant entraînement.
+4. Conserver le dossier `Mon Drive/PFE3/runs/Y02_<date>/` : `status.json`, environnement, provenance, contrôles, métriques, `pilot/args.yaml`, `pilot/results.csv`, `best.pt` et `last.pt`.
+
+Le diagnostic sur huit images couvre les trois classes et utilise 100 époques, nbs=4, sans warm-up ni régularisation ; son AP50 minimale de 0,80 par classe reste un garde de chargement/apprentissage sur le train, pas un score de généralisation. Le pilote complet repart des poids COCO initiaux pour cinq époques. Aucun résultat GPU n'est prérempli. Le poste local a chargé les tenseurs avec Ultralytics 8.4.172, mais CUDA y est indisponible.
+
+Train : **536 images, 864 boîtes person, 2 466 car, 687 truck**. Validation : **238 images, 238 person, 667 car, zéro truck**. Les 774 PNG et les labels personne/voiture reproduisent exactement Y00. Le chargeur d'entraînement réel conserve 858 person, 2 463 car et les **687 truck** ; neuf petites boîtes des classes historiques sont filtrées par le framework. Les sept identités de suivi camion source ne constituent pas sept observations indépendantes : leurs boîtes se répètent au fil du temps dans deux subdivisions d'un même groupe routier.
+
+**La qualité camion est non évaluée sur la validation actuelle.** Le notebook rapporte `ap50: null`, `ap50_95: null`, `NOT_EVALUATED` pour truck, et indique les classes utilisées pour sélectionner `best.pt`. Ce checkpoint est choisi sur personne/voiture ; un bon score global ne valide pas le camion. L'entraînement ou la prédiction sur les images train ne remplacent pas une séquence indépendante avec camions annotés. L'extension de la reconnaissance ne prouve pas le mouvement indépendant.
+
+**249 tests réussis**, vérification complète des deux paquets, tests des tenseurs et de l'absence de métriques inventées. [Préparation](../outputs/yolo/Y02_preparation/preparation.json) · [Tenseurs et comptes par classe](../outputs/yolo/Y02_preparation/tensor-check.json). Les poids reçus ont ensuite été testés sur l'extrait intégré : 250 tests réussis, 153 tableaux et 17 modèles de mouvement conservés, coût complet médian Y02 de 462,5 ms. Le surcoût d'association a ensuite été corrigé : 15,4 ms médians, calcul complet 345,8 ms dans un nouvel essai sous charge variable, résultats exactement conservés et 252 tests réussis. [Comparaison](../outputs/yolo/Y02_association_speed/verification.json). L'absence de validation camion indépendante motive encore le maintien de Y01 par défaut. Les autres classes attendent un corpus d'entraînement et de validation approprié.
+
+Reproduction locale, en utilisant un dossier neuf pour l'export :
+
+```powershell
+.\.venv\Scripts\python.exe scripts/export_yolo_pilot.py --include-truck --output data/processed/dsec_yolo_truck_v1
+.\.venv\Scripts\python.exe scripts/build_yolo_notebook.py --export-report outputs/reports/Y00_truck_export.json --output notebooks/Y02_yolo11n_truck.ipynb
+```
+
+## Historique Y00 / Y01 à deux classes
 
 **Mise à jour du 4 octobre 2026 :** les archives attestent l'échec initial, puis la réussite du diagnostic corrigé (100 époques, AP50=0,995 par classe, 200 pas réels) et du pilote de cinq époques (mAP50 validation=0,2373). Le protocole initial ci-dessous reste l'historique Y00/v1. [Analyse des résultats](24_Y01_COLAB_RESULTS.md).
 

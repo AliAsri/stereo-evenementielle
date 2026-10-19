@@ -3,7 +3,9 @@
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import tempfile
 import http.client
 import urllib.error
 import urllib.request
@@ -72,8 +74,24 @@ def extract_checked(archive_path, destination):
                     raise FileExistsError(f"Existing data differs: {target}")
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
-            with archive.open(member) as source, target.open("xb") as output:
-                shutil.copyfileobj(source, output)
+            # Publish only after the entire member (including its CRC) is read.
+            # A failed extraction must not leave a final file that blocks retries.
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=target.parent, prefix=target.name + ".",
+                                                 suffix=".part", delete=False) as output:
+                    temporary = Path(output.name)
+                    with archive.open(member) as source:
+                        shutil.copyfileobj(source, output)
+                # Windows rename refuses an existing target; POSIX rename would
+                # overwrite it, so use exclusive hard-link creation there.
+                if os.name == 'nt':
+                    temporary.rename(target)
+                else:
+                    target.hardlink_to(temporary)
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
 
 
 def main():

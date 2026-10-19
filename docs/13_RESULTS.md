@@ -1,5 +1,7 @@
 # Résultats réellement obtenus
 
+**Archive des premiers résultats D00–M09.** Les expressions « dernière étape » ci-dessous sont datées. Pour Y02, le démonstrateur intégré et les vérifications du 15 octobre, consulter [le bilan actuel](20_NEXT_STEPS.md) ; pour toutes les étapes intermédiaires, [le journal](19_PROGRESS.md).
+
 **Dernière étape : M09, terminée le 7 octobre 2026.** Coût médian du calcul d’activité réduit de **13,07–18,14 %** sur quatre cas appariés ; 3 660 comparaisons exactes et 9 600 fenêtres cadencées. L’effet sur le retard est variable, avec une régression sur un passage de `04_b`. **96 tests réussis.** [Résultats complets](37_M09_LOOKUP_ACTIVITY.md).
 
 Mise à jour : 2026-10-07. D00 documente l'inspection initiale ; S01 apporte les premières métriques de disparité réellement prédite ; Y01 apporte le premier YOLO événementiel entraîné et évalué dans Colab, dont les archives ont été vérifiées localement.

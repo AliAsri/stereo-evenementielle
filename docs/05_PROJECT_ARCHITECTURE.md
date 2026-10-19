@@ -1,5 +1,15 @@
 # Architecture proposée et contrats
 
+## Architecture exécutée au 18 octobre 2026
+
+Le parcours maintenu est `scripts/run_integrated_demo.py` : lecture DSEC causale → représentations → historique exact (stéréo historique recalculée si absente), suivi sur 100 ms et modèle rigide → publication des indices dans `motion.jsonl` → SGBM courant et mémorisation → YOLO11n et association XYZ aux dates de contexte → GIF et JSON. `clip_motion.py` et `object_surface.py` partagent les calculs de mouvement et de surface. La profondeur de mouvement date de t−100 ms ; celle associée à une nouvelle détection date de t. Le cache ne substitue jamais une date voisine. La stéréo courante ne bloque plus la publication du mouvement de la même date ; elle reste exécutée avant le traitement de la date suivante.
+
+Après choix explicite de l'utilisateur, le mouvement est prioritaire : pas source 20 ms pour ses indices, contexte YOLO/XYZ toutes les 100 ms de temps dataset (défaut, non ajusté sur les résultats). Le contrôle `--context-step-ms 20` calcule le contexte à chaque date. La stéréo interne conserve toutes les dates nécessaires à la compensation. Chaque contexte porte date, âge et référence au fichier calculé ; les objets ne sont présents dans la ligne courante que si `context.updated` est vrai. Un contexte ancien n'est ni dessiné sur une nouvelle image, ni transformé dans la caméra actuelle. Âge dataset ≠ latence système.
+
+Les images sont traitées dans l’ordre sur CPU, avec Y01 par défaut ou Y02 choisi explicitement. Depuis le 17 octobre, les appariements stéréo direct et inverse se chevauchent grâce à un worker persistant et deux matchers distincts ; la cohérence gauche/droite attend les deux résultats. Depuis le 18 octobre, le même worker prépare aussi l'image droite en parallèle de la gauche. Les indices sont écrits et le flux vidé avant le YOLO de la même date ; ce dernier peut cependant retarder la date suivante. La branche d’activité M01/M09 reste une expérience conservée, pas un détecteur fiable d’objets mobiles intégré à cette commande. La stéréo profonde, un ordonnanceur asynchrone indépendant et la persistance d’identités d’objets restent absents. [État, coût et suite](20_NEXT_STEPS.md).
+
+**Conception et étapes historiques ci-dessous.** Les diagrammes cibles et anciennes « prochaines étapes » ne remplacent pas cet état.
+
 ## Priorité de mobilité — 7 octobre 2026
 
 La branche rapide doit évoluer de l’activité vers des propositions d’objets mobiles : suivi temporel des structures, modèle du déplacement apparent du décor, résidus et cohérence temporelle, avec abstention en cas d’ambiguïté. M03 fournit la référence globale ; M10 ajoute des candidats cohérents et persistants, exécutés sur train mais sans validation du mouvement indépendant. YOLO pourra ajouter une classe et la stéréo une profondeur, sans décider seuls qu’un objet bouge. [Contrats et évaluation](38_OBJECTIF_OBJETS_MOBILES.md).

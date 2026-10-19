@@ -81,5 +81,30 @@ class SurfaceTests(unittest.TestCase):
         self.assertEqual(result['UNKNOWN'],1)
         self.assertEqual(result['mobility'],'UNCONFIRMED')
 
+    def test_pixel_dedup_matches_row_sort_with_rounding_and_invalid_maps(self):
+        rng = np.random.default_rng(1510)
+        for dtype in (np.float32, np.float64):
+            mapping = rng.uniform([-2, -2], [52, 42], (25, 35, 2)).astype(dtype)
+            mapping[0, :8] = [[.5, .5], [1.5, 1.5], [2.5, 2.5], [49, 39],
+                              [49.01, 20], [20, 39.01], [np.nan, 2], [2, np.inf]]
+            mapping[1:4] = mapping[0]  # Repeated coordinates and rounded collisions.
+            mapping = mapping[:, ::-1]  # Noncontiguous native mapping.
+            raw = mapping.reshape(-1, 2)
+            keep = (np.isfinite(raw).all(axis=1) & (raw >= 0).all(axis=1)
+                    & (raw <= [49, 39]).all(axis=1))
+            expected = np.unique(np.rint(raw[keep]).astype(int), axis=0)
+            before = mapping.copy()
+            with self.subTest(dtype=dtype):
+                actual = mapped_roi([0, 0, 35, 25], mapping, (40, 50))
+                np.testing.assert_array_equal(actual, expected)
+                self.assertEqual(actual.dtype, expected.dtype)
+                np.testing.assert_array_equal(mapping, before)
+
+    def test_inner_region_and_surface_ties_keep_x_then_y_order(self):
+        pixels = mapped_roi([2, 2, 8, 6], self.mapping, (40, 50), fraction=.5)
+        np.testing.assert_array_equal(pixels, [[4,3], [4,4], [5,3], [5,4], [6,3], [6,4]])
+        # Four equidistant centre pixels: the original order selects x=24,y=19.
+        self.assertEqual(self.infer()['rectified_pixel'], [24, 19])
+
 
 if __name__ == '__main__': unittest.main()

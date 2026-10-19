@@ -1,6 +1,10 @@
 # Journal des décisions
 
-Date commune : 2026-10-03. Une décision conditionnelle sera révisée après mesure, avec raison et conséquence conservées.
+**Journal historique.** Les décisions datées peuvent être remplacées par les demandes ultérieures de l’utilisateur. Les décisions actuelles sont résumées dans [la page active](20_NEXT_STEPS.md) et persistées dans `AGENTS.md`.
+
+**18 octobre 2026 — choix utilisateur explicite : mouvement prioritaire ; classe et 3D moins fréquentes.** Première implémentation : indices de mouvement à chaque pas source de 20 ms, publication avant YOLO, contexte YOLO/XYZ toutes les 100 ms dataset par défaut. La stéréo interne reste à chaque date pour préserver la compensation. Âge du contexte explicite, aucune ancienne géométrie présentée comme actuelle. Les 20 ms sont le budget de comparaison du rejeu, pas une latence de début de mouvement validée. [Implémentation et limites](20_NEXT_STEPS.md).
+
+Date commune du tableau historique ci-dessous : 2026-10-03. Une décision conditionnelle sera révisée après mesure, avec raison et conséquence conservées.
 
 | ID | Décision | Alternatives | Motif | Conséquence / révision |
 |---|---|---|---|---|

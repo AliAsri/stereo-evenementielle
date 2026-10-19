@@ -3,8 +3,8 @@
 import numpy as np
 
 
-def polarity_counts(events, width=640, height=480):
-    """Return uint32 [2,H,W] counts (channel 0 negative, 1 positive)."""
+def _event_indices(events, width, height):
+    """Validate coordinates without allocating a native count image."""
     if width <= 0 or height <= 0:
         raise ValueError("Positive dimensions required")
     x, y, p = (np.asarray(events[key]) for key in ("x", "y", "p"))
@@ -14,9 +14,14 @@ def polarity_counts(events, width=640, height=480):
         raise TypeError("Integer pixel indices and polarities required")
     if np.any(x < 0) or np.any(x >= width) or np.any(y < 0) or np.any(y >= height) or not np.isin(p, [0, 1]).all():
         raise ValueError("Invalid pixel coordinates or polarities")
-    counts = np.zeros((2, height, width), dtype=np.uint32)
-    np.add.at(counts, (p.astype(np.intp), y.astype(np.intp), x.astype(np.intp)), 1)
-    return counts
+    return tuple(a.astype(np.intp, copy=False) for a in (x, y, p))
+
+
+def polarity_counts(events, width=640, height=480):
+    """Return uint32 [2,H,W] counts (channel 0 negative, 1 positive)."""
+    x, y, p = _event_indices(events, width, height)
+    indices = (p * height + y) * width + x
+    return np.bincount(indices, minlength=2*height*width).reshape(2, height, width).astype(np.uint32)
 
 
 def render_counts(counts):
@@ -37,31 +42,99 @@ def rectified_counts(events, mapping, width=640, height=480):
     Each retained event contributes exactly one unit split among <=4 pixels.
     No image interpolation or filling across empty regions is applied afterward.
     """
-    native = polarity_counts(events, mapping.shape[1], mapping.shape[0])
-    if mapping.shape != (*native.shape[1:], 2):
+    mapping = np.asarray(mapping)
+    if mapping.ndim != 3 or mapping.shape[2] != 2:
         raise ValueError("Expected a native H,W,2 map")
-    xy = mapping[events["y"], events["x"]]
+    if width <= 0 or height <= 0:
+        raise ValueError("Positive output dimensions required")
+    x, y, polarity = _event_indices(events, mapping.shape[1], mapping.shape[0])
+    xy = mapping[y, x]
     keep = (np.isfinite(xy).all(axis=1) & (xy[:, 0] >= 0) &
             (xy[:, 0] <= width-1) & (xy[:, 1] >= 0) & (xy[:, 1] <= height-1))
     xy = xy[keep].astype(np.float64)
-    p = events["p"][keep].astype(np.intp)
-    x0, y0 = np.floor(xy).astype(np.intp).T
-    dx, dy = (xy - np.floor(xy)).T
-    counts = np.zeros((2, height, width), dtype=np.float64)
+    p = polarity[keep]
+    floor = np.floor(xy)
+    x0, y0 = floor.astype(np.intp).T
+    dx, dy = (xy - floor).T
+    # Reuse the flat destination base for the four bilinear offsets.
+    base = (p * height + y0) * width + x0
+    indices, weights = [], []
     for ox, oy, weight in ((0, 0, (1-dx)*(1-dy)), (1, 0, dx*(1-dy)),
                           (0, 1, (1-dx)*dy), (1, 1, dx*dy)):
         active = weight > 0
-        np.add.at(counts, (p[active], y0[active]+oy, x0[active]+ox), weight[active])
+        indices.append(base[active] + oy*width + ox)
+        weights.append(weight[active])
+    # Keep the original offset/event order, including collisions across offsets.
+    # Summing four separate histograms would reorder floating-point additions.
+    counts = np.bincount(np.concatenate(indices), weights=np.concatenate(weights),
+                         minlength=2*height*width).reshape(2, height, width)
     if not np.isclose(counts.sum(), keep.sum(), rtol=1e-10, atol=1e-8):
         raise ValueError("Bilinear splat lost event mass")
     return counts.astype(np.float32), int((~keep).sum())
 
 
-def log_channels(counts):
-    """HWC float32: log1p(positive), log1p(negative), log1p(total)."""
+class BilinearRectifier:
+    """Precompute a fixed calibration's splat geometry, not any event data.
+
+    Own the derived arrays so later edits of the input map cannot invalidate
+    them. Preserve the reference's offset/event accumulation order exactly.
+    """
+
+    def __init__(self, mapping, width=640, height=480):
+        mapping = np.asarray(mapping)
+        if mapping.ndim != 3 or mapping.shape[2] != 2:
+            raise ValueError("Expected a native H,W,2 map")
+        if width <= 0 or height <= 0:
+            raise ValueError("Positive output dimensions required")
+        self.native_height, self.native_width = mapping.shape[:2]
+        self.width, self.height = width, height
+        xy = mapping.reshape(-1, 2)
+        self.keep = (np.isfinite(xy).all(axis=1) & (xy[:, 0] >= 0) &
+                     (xy[:, 0] <= width-1) & (xy[:, 1] >= 0) & (xy[:, 1] <= height-1))
+        # Invalid mapped centers are never indexed into the output histogram.
+        xy = np.where(self.keep[:, None], xy, 0).astype(np.float64)
+        floor = np.floor(xy)
+        x0, y0 = floor.astype(np.intp).T
+        dx, dy = (xy-floor).T
+        self.base = y0*width+x0
+        self.weights = ((1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy)
+        for array in (self.keep, self.base, *self.weights):
+            array.setflags(write=False)
+
+    def counts(self, events):
+        x, y, p = _event_indices(events, self.native_width, self.native_height)
+        source = y*self.native_width+x
+        keep = self.keep[source]
+        source = source[keep]
+        base = self.base[source] + p[keep]*(self.height*self.width)
+        # Allocate the four offset blocks once, preserving offset/event order.
+        # Zero weights can stay: adding +0 leaves every nonnegative sum exact.
+        # Clamp only destinations beyond the final pixel (their weight is zero
+        # at retained border centers), so bincount cannot grow an extra bin.
+        indices = np.empty((4, len(source)), dtype=np.intp)
+        weights = np.empty((4, len(source)), dtype=np.float64)
+        for i, (offset, lookup) in enumerate(zip((0, 1, self.width, self.width+1), self.weights)):
+            np.add(base, offset, out=indices[i])
+            weights[i] = lookup[source]
+        np.minimum(indices, 2*self.height*self.width-1, out=indices)
+        counts = np.bincount(indices.ravel(), weights=weights.ravel(),
+                             minlength=2*self.height*self.width).reshape(2, self.height, self.width)
+        if not np.isclose(counts.sum(), keep.sum(), rtol=1e-10, atol=1e-8):
+            raise ValueError("Bilinear splat lost event mass")
+        return counts.astype(np.float32), int((~keep).sum())
+
+
+def _count_array(counts):
+    """Shared float32 conversion and validation for both image formats."""
     counts = np.asarray(counts, dtype=np.float32)
     if counts.ndim != 3 or counts.shape[0] != 2 or not np.isfinite(counts).all() or np.any(counts < 0):
         raise ValueError("Expected finite nonnegative [2,H,W] counts")
+    return counts
+
+
+def log_channels(counts):
+    """HWC float32: log1p(positive), log1p(negative), log1p(total)."""
+    counts = _count_array(counts)
     return np.log1p(np.stack([counts[1], counts[0], counts.sum(axis=0)], axis=-1))
 
 
@@ -95,9 +168,58 @@ def fit_log_normalizer(count_frames, *, source_split, percentile=99.5, seed=42):
             "method": "positive log1p values; up to 10000 random samples/frame/channel; scale floor log(2)"}
 
 
-def normalized_event_image(counts, normalizer):
-    """Frozen shared scales -> HWC uint8; no per-image auto-contrast."""
+def normalized_event_image(counts, normalizer, *, total_only=False):
+    """Frozen scales -> HWC uint8, or HW total channel for stereo/tracking.
+
+    total_only skips the unused polarity channels without changing the total
+    count sum, float32 logarithm, frozen scale, clipping or rounding.
+    """
+    # Scale-only synthetic callers remain supported; declared channel metadata
+    # must agree with the representation, including the total-only fast path.
+    if ('channels' in normalizer
+            and normalizer['channels'] != ['positive', 'negative', 'total']):
+        raise ValueError('Normalizer channel order must be positive, negative, total')
     scales = np.asarray(normalizer["scales"], dtype=np.float32)
     if scales.shape != (3,) or not np.isfinite(scales).all() or np.any(scales <= 0):
         raise ValueError("Three finite positive scales required")
-    return np.rint(np.clip(log_channels(counts) / scales, 0, 1) * 255).astype(np.uint8)
+    if total_only:
+        channels = np.log1p(_count_array(counts).sum(axis=0))
+        scales = scales[2]
+    else:
+        channels = log_channels(counts)
+    return np.rint(np.clip(channels / scales, 0, 1) * 255).astype(np.uint8)
+
+
+def stereo_event_images(events, rectifiers, normalizer, *, executor=None, include_native=True):
+    """Native left RGB and rectified totals, with optional right-side overlap.
+
+    The caller owns the executor and keeps inputs immutable until return.
+    Event order and arithmetic within each image are identical to serial use.
+    No extra frame, temporal cache or future event is introduced.
+    With include_native=False, return None for the native image so its caller
+    can compute it after publishing motion; rectified images are unchanged.
+    """
+    if len(events) != 2 or len(rectifiers) != 2:
+        raise ValueError('Left/right events and rectifiers required')
+
+    def rectified(side):
+        return normalized_event_image(rectifiers[side].counts(events[side])[0],
+                                      normalizer, total_only=True)
+
+    right_job = executor.submit(rectified, 1) if executor is not None else None
+    try:
+        left = rectifiers[0]
+        native = (normalized_event_image(polarity_counts(events[0], left.native_width,
+                                                         left.native_height), normalizer)
+                  if include_native else None)
+        image_left = rectified(0)
+    except BaseException:
+        # Do not leave work using caller-owned arrays after a failed call.
+        if right_job is not None and not right_job.cancel():
+            try:
+                right_job.result()
+            except BaseException:
+                pass  # Preserve the original left-side failure.
+        raise
+    image_right = right_job.result() if right_job is not None else rectified(1)
+    return native, [image_left, image_right]

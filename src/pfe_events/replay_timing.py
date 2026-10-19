@@ -4,6 +4,44 @@ This measures output age after window availability, not physical motion onset.
 All windows are processed in order; overload is reported, never silently skipped.
 """
 import time
+import math
+
+
+def offline_cadence_budget(timestamps_us, costs_ms, *, step_us):
+    """Simulate a FIFO at recorded cadence from measured serial service costs.
+
+    First window is available at zero, with empty queue and history available.
+    No frame is skipped. This is not a paced run or a motion-onset latency.
+    """
+    dates, costs = list(timestamps_us), list(costs_ms)
+    if (type(step_us) is not int or step_us <= 0 or not dates
+            or len(dates) != len(costs)
+            or any(type(t) is not int for t in dates)
+            or any(b-a != step_us for a, b in zip(dates, dates[1:]))
+            or any(isinstance(c, bool) or not isinstance(c, (int, float))
+                   or not math.isfinite(c) or c < 0 for c in costs)):
+        raise ValueError('Contiguous integer timestamps and finite nonnegative costs required')
+    budget = step_us/1000
+    finish = 0.0
+    rows = []
+    for date, cost in zip(dates, costs):
+        release = (date-dates[0])/1000
+        start = max(release, finish)
+        finish = start+cost
+        rows.append(dict(timestamp_us=date, measured_service_ms=cost,
+                         simulated_wait_ms=start-release,
+                         simulated_output_age_ms=finish-release,
+                         simulated_deadline_missed=finish > release+budget))
+    missed = sum(row['simulated_deadline_missed'] for row in rows)
+    return dict(status='OVER_BUDGET' if missed else 'WITHIN_OBSERVED_BUDGET_NOT_REALTIME_VALIDATED',
+                budget_ms=budget, requested_outputs_per_second=1e6/step_us,
+                frames=len(rows), frames_service_over_budget=sum(c > budget for c in costs),
+                simulated_deadlines_missed=missed,
+                simulated_final_output_age_ms=rows[-1]['simulated_output_age_ms'],
+                simulated_max_output_age_ms=max(row['simulated_output_age_ms'] for row in rows),
+                assumption='FIFO at recorded cadence, empty initial queue, history already available, no drops; measured offline costs reused unchanged',
+                limitation='Simulation, not measured live latency; excludes acquisition, window/history startup and physical motion onset',
+                rows=rows)
 
 
 def paced_windows(reader, detector, start_us, duration_us, step_us, *,

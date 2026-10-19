@@ -1,13 +1,40 @@
 # Commandes existantes et vérifiées
 
-## Validation actuelle — R01, 8 octobre 2026
+## Parcours actuel : mouvement prioritaire — 18 octobre 2026
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/check_project.py --output outputs/checks/local_01
-.\.venv\Scripts\python.exe scripts/audit_evimo_sample.py --output outputs/motion/M14_audit_02
+.\.venv-demo\Scripts\python.exe scripts/run_integrated_demo.py --output outputs/demo_motion_priority_repeat
 ```
 
-Choisir des dossiers neufs. La première commande est une validation hors ligne ; la seconde relit l’échantillon EVIMO déjà acquis. 144 tests passent après R01. Les nombres dans les sections datées ci-dessous sont historiques. [Guide de maintenance](44_PROJECT_MAINTENANCE.md).
+Indices de mouvement à chaque pas source de 20 ms, publiés dans `motion.jsonl` avant le contexte ; YOLO et association XYZ toutes les 100 ms dataset par défaut. Pour le contrôle à chaque date, ajouter `--context-step-ms 20` avec un autre dossier neuf. Ce paramètre ne change ni les fenêtres 50 ms, ni le suivi 100 ms, ni les profondeurs exactes utilisées par la compensation. Aucun saut de date de mouvement ; aucune cadence temps réel promise. Les contextes anciens ne sont pas superposés aux images actuelles ; `context.updated=false` distingue non-calcul et absence de détection. Les commandes historiques ci-dessous sans option utilisent désormais ce nouveau défaut.
+
+## Rejeu intégré optimisé — 14 octobre 2026
+
+```powershell
+.\.venv-demo\Scripts\python.exe scripts/run_integrated_demo.py --output outputs/demo_speed_repeat
+```
+
+Le cache des six dates courantes est actif par défaut ; seules les images et disparités aux timestamps exacts sont réutilisées dans la branche mouvement. Ajouter `--no-history-cache` pour le contrôle sans cache dans un autre dossier neuf. L'accumulation optimisée des événements reste active dans les deux cas ; cette option ne restaure donc pas toute l'ancienne implémentation. Les sorties du 14 octobre et leur comparaison sont dans `outputs/demo_speed_20261014/`. Voir [le suivi actif](20_NEXT_STEPS.md) pour les coûts mesurés et leurs limites.
+
+Le démonstrateur utilise deux threads OpenCV et un thread PyTorch. Ajouter `--opencv-threads 1` pour mesurer le contrôle à un thread ; le cache et l'accumulation optimisée restent actifs. Le nombre de threads effectif est enregistré dans `summary.json` sous `cpu_execution`. Aucun changement de fenêtre temporelle ou de seuil scientifique n'est nécessaire.
+
+## Validation actuelle — 11 octobre 2026
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_project.py --output outputs/checks/local_02
+.\.venv\Scripts\python.exe scripts/run_integrated_demo.py --check-inputs
+```
+
+Choisir un dossier neuf pour les contrôles. La première commande vérifie le code, les aides CLI et les tests hors ligne ; la seconde liste les entrées manquantes puis vérifie tailles/SHA-256 contre le manifeste sans charger YOLO. Ce contrôle est aussi obligatoire avant le rejeu. Avec `--weights`, les sept entrées de scène restent vérifiées ; l'empreinte du checkpoint explicite est relevée sans conformité annoncée à Y01. Voir la [page active](20_NEXT_STEPS.md) pour le dernier bilan et le [README](../README.md#prérequis-du-rejeu-intégré) pour les dépendances. Les résultats et commandes datés ci-dessous restent historiques ; leur présence ne demande pas de reprendre les anciennes expériences.
+
+Les deux diagnostics historiques auparavant exécutés à l'import demandent maintenant une sortie explicite :
+
+```powershell
+.\.venv\Scripts\python.exe scripts/diagnostics/check_camera_influence.py --output outputs/focused_truck/camera_influence_rerun.json
+.\.venv\Scripts\python.exe scripts/diagnostics/explain_points.py --output outputs/focused_truck/inspection_rerun
+```
+
+Ils nécessitent les résultats locaux antérieurs indiqués par `--help` ; ce sont des contrôles après observation, pas des évaluations de mobilité.
 
 Exécuter depuis la racine du projet. Sous PowerShell, aucun besoin d'activer un script d'environnement si l'interpréteur est appelé explicitement.
 
@@ -114,7 +141,7 @@ Par défaut, 20 dates par séquence, 50 000 µs par fenêtre, partitions dans `c
 
 L'export et la génération ont été exécutés. L'exporteur refuse désormais le dossier existant pour préserver les preuves ; pour une nouvelle version, fournir `--output data/processed/NOUVELLE_VERSION`. Le générateur régénère le notebook à partir du rapport Y00 courant ; modifier sa source dans `scripts/build_yolo_notebook.py` pour conserver une correction. Le vérificateur peut être relancé sans régénérer les images.
 
-Pour reproduire Y01, transférer `data/processed/dsec_yolo_pilot_v1.zip` (151,26 Mio) et importer `notebooks/Y01_yolo11n_events_pilot.ipynb` dans Colab. Choisir un GPU et suivre le [guide](22_YOLO_EXPORT_COLAB.md). L'utilisateur a déjà exécuté le protocole avec correction du diagnostic ; les archives attestent les contrôles des tenseurs et l'entraînement. Une reproduction doit écrire dans une nouvelle session. Y02 reste à préparer.
+Pour reproduire Y01, transférer `data/processed/dsec_yolo_pilot_v1.zip` (151,26 Mio) et importer `notebooks/Y01_yolo11n_events_pilot.ipynb` dans Colab. Choisir un GPU et suivre le [guide](22_YOLO_EXPORT_COLAB.md). L'utilisateur a déjà exécuté le protocole avec correction du diagnostic ; les archives attestent les contrôles des tenseurs et l'entraînement. Une reproduction doit écrire dans une nouvelle session. Y02 a été entraîné le 15 octobre ; son utilisation explicite et ses limites sont décrites dans [la page active](20_NEXT_STEPS.md#y02--personne-voiture-camion).
 
 ## Mettre à jour les copies Markdown
 

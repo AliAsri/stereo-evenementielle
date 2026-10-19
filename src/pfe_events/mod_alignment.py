@@ -42,6 +42,65 @@ def rgb_to_event_homography(calibration):
     return h / h[2, 2]
 
 
+def parallax_mask_reachability(points, mask, calibration):
+    """Conservative geometric intersection, NOT mobility labels or a depth warp.
+
+    An event-rectified point q at axial depth Z maps into the rotation-warped
+    RGB grid as q + d/(Z+v_z), with v=R_rect0 R_10.T t_10 and
+    d=(fx*v_x-(q_x-cx)*v_z, fy*v_y-(q_y-cy)*v_z).
+    Check every Z>0 (except the projective singularity) against closed unit
+    squares of positive mask pixels. Closed edges deliberately over-admit
+    boundary contacts. RGB visibility/occlusion is not certified; a possible
+    intersection is only necessary, and a miss is conditional on exact masks,
+    calibration and the instantaneous pinhole model.
+    """
+    rgb_to_event_homography(calibration)  # Validate the same camera conventions.
+    points = np.asarray(points,dtype=float)
+    if (points.ndim != 2 or points.shape[1:] != (2,) or not np.isfinite(points).all()
+            or mask.ndim != 2 or mask.dtype != bool or min(mask.shape) <= 0):
+        raise ValueError('Finite Nx2 rectified pixels and a nonempty boolean mask required')
+    ext = calibration['extrinsics']
+    t = np.asarray(ext['T_10'],float)
+    v = np.asarray(ext['R_rect0'],float) @ t[:3,:3].T @ t[:3,3]
+    fx,fy,cx,cy = calibration['intrinsics']['camRect0']['camera_matrix']
+    directions = np.array([fx,fy])*v[:2] - (points-[cx,cy])*v[2]
+    yy,xx = np.nonzero(mask)
+    centres = np.column_stack((xx,yy)).astype(float)
+    branches = [(0.,1/v[2] if v[2]>0 else np.inf)]
+    if v[2]<0: branches.append((-np.inf,1/v[2]))
+    rows = []
+    for point,direction in zip(points,directions):
+        lower,upper = np.full(len(centres),-np.inf),np.full(len(centres),np.inf)
+        for axis in range(2):
+            low,high = centres[:,axis]-.5,centres[:,axis]+.5
+            if direction[axis] == 0:
+                outside = (point[axis]<low)|(point[axis]>high)
+                lower[outside],upper[outside] = np.inf,-np.inf
+            else:
+                a,b = (low-point[axis])/direction[axis],(high-point[axis])/direction[axis]
+                lower,upper = np.maximum(lower,np.minimum(a,b)),np.minimum(upper,np.maximum(a,b))
+        hit = np.zeros(len(centres),bool)
+        max_depths = []
+        unbounded = False
+        for start,stop in branches:
+            lo,hi = np.maximum(lower,start),np.minimum(upper,stop)
+            valid = (lo<=hi)&(hi>start)&(lo<stop)
+            hit |= valid
+            for a in lo[valid]:
+                if a == 0:
+                    unbounded = True
+                else:
+                    max_depths.append(float(-v[2] if np.isneginf(a) else 1/a-v[2]))
+        distance = (np.linalg.norm(np.maximum(np.abs(centres-point)-.5,0),axis=1).min()
+                    if len(centres) else None)
+        rows.append(dict(possible_positive_pixels=int(hit.sum()),
+            possible=bool(hit.any()),max_compatible_depth_m=(None if unbounded or not max_depths else max(max_depths)),
+            unbounded_max_depth=unbounded,distance_to_positive_pixel_squares_px=None if distance is None else float(distance),
+            direction_px_m=direction.tolist()))
+    return dict(effective_translation_m=v.tolist(),points=rows,
+                interpretation='Conservative spatial compatibility only; no observed depth, visibility or mobility guarantee')
+
+
 def compare_projected_rgb(original, reference, homography):
     """Compare image intensities on valid projected support; no fitted geometry."""
     if (original.dtype != np.uint8 or reference.dtype != np.uint8

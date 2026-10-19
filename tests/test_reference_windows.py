@@ -23,12 +23,27 @@ class EmptyReader:
 
 
 class WindowInferenceTests(unittest.TestCase):
-    def infer(self, left, right, window, end=50000, step=20000):
+    def infer(self, left, right, window, end=50000, step=20000, demo_motion=False):
         calibration = {'q': [[1, 0, 0, -320], [0, 1, 0, -240],
                               [0, 0, 0, 100], [0, 0, 10, 0]],
                        'fx_px': 100, 'fy_px': 100, 'cx_px': 320, 'cy_px': 240}
         return infer_pair(left, right, [np.zeros((2, 2, 2), np.float32)]*2,
-                          calibration, {'scales': [1, 1, 1]}, end, window, step, StereoConfig())
+                          calibration, {'scales': [1, 1, 1]}, end, window, step, StereoConfig(),
+                          demo_motion=demo_motion)
+
+    def test_demo_startup_requires_150ms_without_reading_truncated_history(self):
+        left, right = EmptyReader(), EmptyReader()
+        _, result = self.infer(left, right, 50000, end=100000, step=100000, demo_motion=True)
+        self.assertEqual(result['status'], 'INSUFFICIENT_HISTORY')
+        self.assertEqual(result['required_history_us'], 150000)
+        self.assertEqual(result['overlap_us'], 0)
+        self.assertEqual(left.calls, [(50000, 100000)])
+        self.assertEqual(right.calls, [])
+
+    def test_demo_rejects_other_window_or_interval(self):
+        for window, step in [(20000, 100000), (50000, 20000)]:
+            with self.subTest(window=window, step=step), self.assertRaises(ValueError):
+                self.infer(EmptyReader(), EmptyReader(), window, step=step, demo_motion=True)
 
     def test_long_window_startup_reads_no_truncated_stereo(self):
         left, right = EmptyReader(), EmptyReader()

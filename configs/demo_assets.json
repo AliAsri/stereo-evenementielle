@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "description": "Frozen inputs of the existing 17-frame DSEC zurich_city_04_b CPU replay; local SHA256 identities, not publisher signatures.",
+  "files": [
+    {
+      "path": "outputs/colab/Y01_20261003T191753Z/pilot/weights/best.pt",
+      "bytes": 5454426,
+      "sha256": "d520108bd92cceb3264ef3b4b83fde94e721c20f4d80b9ef88c0b2d4146a47d4",
+      "bundled": true
+    },
+    {
+      "path": "outputs/stereo/S01/normalizer.json",
+      "bytes": 1099,
+      "sha256": "f6cdc14082a4e63ff2586091155d5a836fe482ec1b6f1f44ef71a68d0fe53a65",
+      "bundled": true
+    },
+    {
+      "path": "data/processed/dsec_yolo_pilot_v1/images/train/zurich_city_04_b_36614000936.png",
+      "bytes": 174927,
+      "sha256": "c8f5e219156e9ccdd14603fe542f56b386359e28519707696c95784e84bc763d",
+      "bundled": true
+    },
+    {
+      "path": "data/raw/zurich_city_04_b/calibration/cam_to_cam.yaml",
+      "bytes": 6601,
+      "sha256": "418ff1ca2293433fbbbd33b9ab4a2036286501ff63e8fb11064798452083b08c",
+      "bundled": false
+    },
+    {
+      "path": "data/raw/zurich_city_04_b/events_left/rectify_map.h5",
+      "bytes": 2459648,
+      "sha256": "c75d51d0ac582e4c76249e7308a43bca84f1f29c7fdf4711bff1ff9a128ba4a3",
+      "bundled": false
+    },
+    {
+      "path": "data/raw/zurich_city_04_b/events_right/rectify_map.h5",
+      "bytes": 2459648,
+      "sha256": "c3a2a2c4e7806c87cefdece57064e6d450221e4eaa2defc4ee08289f89396169",
+      "bundled": false
+    },
+    {
+      "path": "data/raw/zurich_city_04_b/events_left/events.h5",
+      "bytes": 278207816,
+      "sha256": "38fb35836ea50f182563d060a35758fd487e6b1682df0d58b14363975f020467",
+      "bundled": false
+    },
+    {
+      "path": "data/raw/zurich_city_04_b/events_right/events.h5",
+      "bytes": 266316340,
+      "sha256": "7652d756cd8bf949837839244493cd84336601710534f520cadf41687ae8e2da",
+      "bundled": false
+    }
+  ]
+}

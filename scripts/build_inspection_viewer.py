@@ -122,6 +122,8 @@ def load_clip_sensitivity(folder, frames, summary_path, hashes):
                 raise ValueError('Clip sensitivity percentage differs')
             result.append(dict(timestamp_us=frame['timestamp_us'],previous_pose_image=index,
                 changed=counts['changed_points'],evaluated=counts['common_evaluated'],percent=percent,
+                changed_indices=np.flatnonzero(changed).tolist(),
+                evaluated_indices=np.flatnonzero(common).tolist(),
                 validity_changed=counts['validity_changed']))
     for path in (report_path,arrays_path): hashes[str(path.relative_to(ROOT))]=sha256_file(path)
     return result

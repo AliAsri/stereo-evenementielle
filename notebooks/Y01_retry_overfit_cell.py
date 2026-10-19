@@ -2,12 +2,14 @@
 
 Requires the original notebook's setup variables in the still-active runtime.
 Preserves the failed run. Executes one new diagnostic, NOT the full pilot.
+Y01 person/car only; supports both historical and regenerated reporting APIs.
 """
 
 from datetime import datetime, timezone
 from pathlib import Path
 import csv
 import hashlib
+import inspect
 import json
 import math
 
@@ -15,6 +17,25 @@ import torch
 import ultralytics
 import yaml
 from ultralytics import YOLO
+
+
+def prepare_retry_reporting(metrics_fn, data_root, subset):
+    """Check Y01 label support and reporting compatibility BEFORE any training."""
+    support = [0, 0]
+    for relative in subset:
+        label = data_root/relative.removeprefix('./').replace('images/', 'labels/', 1)
+        for line in label.with_suffix('.txt').read_text().splitlines():
+            cls = int(line.split()[0])
+            if cls not in (0, 1):
+                raise ValueError('This retry cell is for Y01 person/car only')
+            support[cls] += 1
+    if not all(support):
+        raise ValueError('Y01 retry requires both person and car labels')
+    signature = inspect.signature(metrics_fn)
+    kwargs = {'support': support} if 'support' in signature.parameters else {}
+    signature.bind(None, 'same train subset diagnostic', **kwargs)
+    return kwargs
+
 
 required = ("RUN_DIR", "INITIAL", "OVERFIT_YAML", "DATA_ROOT", "COMMON", "CHECKS_PASSED", "metrics_dict")
 missing = [name for name in required if name not in globals()]
@@ -43,6 +64,9 @@ if previous_csv.exists():
 subset = (Path(DATA_ROOT)/"overfit.txt").read_text().splitlines()
 assert len(subset) == len(set(subset)) == 8
 assert all(line.startswith("./images/train/") for line in subset)
+retry_names = yaml.safe_load(Path(OVERFIT_YAML).read_text())['names']
+assert retry_names in ({0: 'person', 1: 'car'}, ['person', 'car']), 'Cellule réservée à Y01 personne/voiture.'
+retry_metrics_kwargs = prepare_retry_reporting(metrics_dict, Path(DATA_ROOT), subset)
 attempt = Path(RUN_DIR)/("overfit_retry_"+datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
 attempt.mkdir(exist_ok=False)
 
@@ -74,7 +98,8 @@ try:
     retry_metrics = YOLO(str(retry_best)).val(
         data=str(OVERFIT_YAML), imgsz=640, batch=4, device=0, conf=0.001,
         iou=0.7, max_det=300, workers=2, project=str(attempt), name="check", plots=True)
-    retry_report = metrics_dict(retry_metrics, "SAME TRAIN SUBSET DIAGNOSTIC; NOT GENERALIZATION")
+    retry_report = metrics_dict(retry_metrics, "SAME TRAIN SUBSET DIAGNOSTIC; NOT GENERALIZATION",
+                                **retry_metrics_kwargs)
     retry_report.update(counter)
     retry_report["best_sha256"] = hashlib.sha256(retry_best.read_bytes()).hexdigest()
     retry_json("metrics.json", retry_report)

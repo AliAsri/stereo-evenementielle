@@ -7,7 +7,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from pfe_events.http_range import HTTPRangeReader
 from pfe_events.mod_alignment import (rgb_to_event_homography, compare_projected_rgb,
-                                      select_verified_frame, verified_timestamp)
+                                      select_verified_frame, verified_timestamp,parallax_mask_reachability)
 
 
 class AlignmentTests(unittest.TestCase):
@@ -31,6 +31,72 @@ class AlignmentTests(unittest.TestCase):
         c = self.calibration(); h = rgb_to_event_homography(c)
         c['extrinsics']['T_10'][0, 3] = 100
         np.testing.assert_array_equal(h, rgb_to_event_homography(c))
+
+    def test_parallax_direction_and_positive_depth_range(self):
+        c=self.calibration()
+        mask=np.zeros((20,30),bool);mask[6,9]=True
+        result=parallax_mask_reachability(np.array([[5,6],[15,6]]),mask,c)
+        self.assertTrue(result['points'][0]['possible'])
+        self.assertAlmostEqual(result['points'][0]['max_compatible_depth_m'],4/3.5)
+        self.assertFalse(result['points'][1]['possible'])
+        self.assertAlmostEqual(result['points'][1]['distance_to_positive_pixel_squares_px'],5.5)
+
+    def test_parallax_formula_matches_full_three_dimensional_camera_chain(self):
+        c=self.calibration()
+        angle=.12
+        rotation=np.array([[np.cos(angle),0,np.sin(angle)],[0,1,0],[-np.sin(angle),0,np.cos(angle)]])
+        c['extrinsics']['T_10'][:3,:3]=rotation
+        c['extrinsics']['T_10'][:3,3]=[.04,.002,-.01]
+        c['extrinsics']['R_rect0']=rotation.T
+        b=.08
+        c['extrinsics']['R_rect1']=np.array([[1,0,0],[0,np.cos(b),-np.sin(b)],[0,np.sin(b),np.cos(b)]])
+        p=np.array([[8.,10.]])
+        r=parallax_mask_reachability(p,np.ones((30,30),bool),c)
+        v=np.asarray(r['effective_translation_m'])
+        d=np.asarray(r['points'][0]['direction_px_m'])
+        k1=np.array([[200,0,20],[0,200,30],[0,0,1]])
+        h=rgb_to_event_homography(c)
+        for depth in (1,3,20):
+            rect0=np.array([(8-5)/100*depth,(10-6)/100*depth,depth])
+            native0=np.asarray(c['extrinsics']['R_rect0']).T@rect0
+            native1=rotation@native0+c['extrinsics']['T_10'][:3,3]
+            rect1=np.asarray(c['extrinsics']['R_rect1'])@native1
+            full=h@(k1@rect1)
+            np.testing.assert_allclose(p[0]+d/(depth+v[2]),full[:2]/full[2],atol=1e-11)
+
+    def test_parallax_checks_negative_projective_branch_for_positive_event_depth(self):
+        c=self.calibration();c['extrinsics']['T_10'][:3,3]=[.01,0,-1]
+        mask=np.zeros((20,20),bool);mask[6,3]=True
+        row=parallax_mask_reachability(np.array([[5,6]]),mask,c)['points'][0]
+        self.assertTrue(row['possible'])
+        self.assertAlmostEqual(row['max_compatible_depth_m'],.6)
+
+    def test_parallax_zero_translation_and_empty_foreground(self):
+        c=self.calibration();c['extrinsics']['T_10'][:3,3]=0
+        mask=np.zeros((20,20),bool);mask[6,5]=True
+        rows=parallax_mask_reachability(np.array([[5,6],[10,6]]),mask,c)['points']
+        self.assertTrue(rows[0]['possible']);self.assertTrue(rows[0]['unbounded_max_depth'])
+        self.assertFalse(rows[1]['possible'])
+        mask[:]=False
+        row=parallax_mask_reachability(np.array([[5,6]]),mask,c)['points'][0]
+        self.assertFalse(row['possible']);self.assertIsNone(row['distance_to_positive_pixel_squares_px'])
+
+    def test_parallax_closed_pixel_boundary_is_conservative(self):
+        c=self.calibration()
+        mask=np.zeros((20,20),bool);mask[6,9]=True
+        row=parallax_mask_reachability(np.array([[5.,6.5]]),mask,c)['points'][0]
+        self.assertTrue(row['possible'])
+        with self.assertRaises(ValueError): parallax_mask_reachability(np.array([[np.nan,0]]),mask,c)
+        with self.assertRaises(ValueError): parallax_mask_reachability(np.array([[0.,0.]]),mask.astype(np.uint8),c)
+
+    def test_parallax_positive_axial_translation_has_finite_projective_extent(self):
+        c=self.calibration();c['extrinsics']['T_10'][2,3]=1
+        mask=np.zeros((20,20),bool);mask[6,10]=True
+        self.assertFalse(parallax_mask_reachability(np.array([[5,6]]),mask,c)['points'][0]['possible'])
+        mask[:]=False;mask[6,9]=True
+        row=parallax_mask_reachability(np.array([[5,6]]),mask,c)['points'][0]
+        self.assertTrue(row['possible'])
+        self.assertAlmostEqual(row['max_compatible_depth_m'],4/3.5-1)
 
     def test_rejects_invalid_calibration(self):
         c = self.calibration(); c['extrinsics']['R_rect0'][0, 0] = 2

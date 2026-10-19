@@ -15,6 +15,8 @@ node_modules/
 data/
 models/
 outputs/
+/output/
+/tmp/
 Ultralytics/
 *.pt
 *.pth

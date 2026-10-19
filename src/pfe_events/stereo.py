@@ -31,6 +31,7 @@ class StereoConfig:
 
     def to_dict(self):
         return {**asdict(self), "min_disparity": 0, "mode": "SGBM_3WAY",
+                "border_policy": "fill invalid left search band with padded crop; native support and LR checks",
                 "input": "rectified total-event log channel, uint8",
                 "P1": 8*self.block_size**2, "P2": 32*self.block_size**2,
                 "threads": cv2.getNumThreads()}
@@ -46,26 +47,58 @@ def decode_sgbm(raw):
     return disparity
 
 
-def predict_stereo(left, right, config=StereoConfig()):
+def _matcher(config):
+    return cv2.StereoSGBM_create(
+        minDisparity=0, numDisparities=config.num_disparities, blockSize=config.block_size,
+        P1=8*config.block_size**2, P2=32*config.block_size**2, disp12MaxDiff=1,
+        uniquenessRatio=config.uniqueness_ratio, speckleWindowSize=config.speckle_window_size,
+        speckleRange=config.speckle_range, preFilterCap=31, mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+
+
+def _reverse_match(left, right, config):
+    # A separate matcher owns its mutable OpenCV buffers on the worker thread.
+    return _matcher(config).compute(np.ascontiguousarray(right[:, ::-1]),
+                                    np.ascontiguousarray(left[:, ::-1]))
+
+
+def predict_stereo(left, right, config=StereoConfig(), *, executor=None):
     """Return left disparity, valid mask, raw disparity and reason counts.
 
     Reverse matching uses horizontally flipped (right,left) so its positive
     disparity represents original u_left-u_right. No GT is accepted here.
+    A padded crop recovers candidates in the left search band only. Existing
+    positive disparities are preserved; padding never supplies activity support
+    or reverse matches, and final coordinates must lie inside the native image.
+
+    An optional caller-owned thread executor overlaps reverse matching with
+    forward/border matching. Inputs must remain unchanged until this call ends.
+    Both results are joined before consistency checks; no frames are skipped.
     """
     left, right = np.asarray(left), np.asarray(right)
     if left.shape != right.shape or left.ndim != 2 or left.dtype != np.uint8 or right.dtype != np.uint8:
         raise ValueError("Equal H,W uint8 grayscale images required")
     if left.shape[1] <= config.num_disparities + config.block_size:
         raise ValueError("Image too narrow for disparity search")
-    matcher = cv2.StereoSGBM_create(
-        minDisparity=0, numDisparities=config.num_disparities, blockSize=config.block_size,
-        P1=8*config.block_size**2, P2=32*config.block_size**2, disp12MaxDiff=1,
-        uniquenessRatio=config.uniqueness_ratio, speckleWindowSize=config.speckle_window_size,
-        speckleRange=config.speckle_range, preFilterCap=31, mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+    reverse_job = (executor.submit(_reverse_match, left, right, config)
+                   if executor is not None else None)
+    matcher = _matcher(config)
     raw = matcher.compute(np.ascontiguousarray(left), np.ascontiguousarray(right))
+    # SGBM skips the first D columns even where a smaller disparity is observable.
+    # Limit the extra pass to that band plus block context, preserving the full
+    # image solution elsewhere. Both images receive the same coordinate offset.
+    border = config.num_disparities
+    context_end = min(left.shape[1], border + config.block_size//2 + 1)
+    crop_left = np.pad(left[:, :context_end], ((0, 0), (border, 0)))
+    crop_right = np.pad(right[:, :context_end], ((0, 0), (border, 0)))
+    border_raw = matcher.compute(crop_left, crop_right)[:, border:2*border]
+    target = raw[:, :border]
+    replace = (target <= 0) & (border_raw > 0)
+    target[replace] = border_raw[replace]
     disparity = decode_sgbm(raw)
-    reverse = decode_sgbm(matcher.compute(np.ascontiguousarray(right[:, ::-1]),
-                                        np.ascontiguousarray(left[:, ::-1])))[:, ::-1]
+    reverse_raw = (reverse_job.result() if reverse_job is not None else
+                   matcher.compute(np.ascontiguousarray(right[:, ::-1]),
+                                   np.ascontiguousarray(left[:, ::-1])))
+    reverse = decode_sgbm(reverse_raw)[:, ::-1]
     yy, xx = np.indices(left.shape)
     raw_valid = np.isfinite(disparity)
     xr = np.rint(xx - np.where(raw_valid, disparity, 0)).astype(np.intp)

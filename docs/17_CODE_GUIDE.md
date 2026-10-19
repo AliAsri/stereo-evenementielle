@@ -1,5 +1,18 @@
 # Guide du code réellement présent
 
+## Point d’entrée actuel — 15 octobre 2026
+
+| Rôle | Code maintenu |
+|---|---|
+| Commande principale, mesures, GIF/JSON | `scripts/run_integrated_demo.py` |
+| Lecture et représentations | `dsec_cached.py`, `dsec_indexed.py`, `representations.py` |
+| Calibration, disparité et reprojection | `geometry.py`, `stereo.py` |
+| Suivi, historique exact et modèle rigide | `clip_motion.py`, `rectified_tracking.py`, `rigid_motion.py` |
+| Association des boîtes aux surfaces et aux points | `object_surface.py` |
+| Conversion des classes et préparation Colab | `detection.py`, `scripts/export_yolo_pilot.py`, `scripts/build_yolo_notebook.py` |
+
+Les modules sont sous `src/pfe_events/`. L’estimation de surface n’affirme pas un centre d’objet ; le résidu n’affirme pas un mouvement propre. [État du parcours](20_NEXT_STEPS.md), [contrôles et corrections](44_PROJECT_MAINTENANCE.md). Les descriptions datées ci-dessous documentent aussi les outils historiques.
+
 **Organisation actuelle au 8 octobre 2026 :** voir la [carte des modules et utilitaires R01](44_PROJECT_MAINTENANCE.md). Les sections ci-dessous détaillent les algorithmes ; les fonctions partagées des lanceurs ont été extraites sans modification des seuils ou des résultats scientifiques.
 
 ## Lecture indexée — `src/pfe_events/dsec_indexed.py`
@@ -30,9 +43,9 @@ Le rejet d'un pixel isolé protège contre un cas de bruit ; il n'est pas un fil
 
 ## Import des archives Colab — `scripts/import_y01_results.py`
 
-Script limité à la session `Y01_20261003T191753Z`, utilisant la bibliothèque standard. Entrées : chemins des ZIP fournis, sans modifier les archives. `sha256(path)` calcule l'empreinte en flux ; `main()` inventorie chaque archive, vérifie les chemins et doublons, extrait métadonnées/figures et poids best/last/initiaux, puis contrôle leur CRC et SHA256. Les checkpoints intermédiaires restent dans les ZIP. Un fichier local différent n'est pas écrasé ; un second import identique est accepté.
+Importeur utilisant la bibliothèque standard : session Y01 historique par défaut ; session Y01/Y02 datée sélectionnée avec `--run`, export local sélectionné avec `--dataset`. Entrées : chemins des ZIP fournis, sans modifier les archives. `sha256(path)` calcule l'empreinte en flux ; `main()` inventorie chaque archive, vérifie les chemins et doublons, extrait métadonnées/figures et poids best/last/initiaux, puis contrôle leur CRC et SHA256. Les checkpoints intermédiaires restent dans les ZIP. Un fichier local différent n'est pas écrasé ; un second import identique est accepté.
 
-Sorties : `outputs/colab/Y01_20261003T191753Z/` et `outputs/reports/Y01_colab_audit.json`. Le rapport inclut les métriques originales, neuf comparaisons de provenance et les époques portant les meilleurs scores CSV. `PASS` indique la cohérence des fichiers contrôlés, pas une évaluation du modèle. Les fichiers `.pt` ne sont pas chargés par PyTorch. Pour une autre session, adapter explicitement l'identifiant et les contrats des rapports ; ce n'est pas un importeur universel. Deux exécutions sur les ZIP réels ont vérifié l'import et sa répétabilité sans écrasement de fichiers différents. [Analyse](24_Y01_COLAB_RESULTS.md).
+Sorties : `outputs/colab/<session>/` et `outputs/reports/Y01_colab_audit.json` ou `Y02_colab_audit.json`. Le dossier de rapports est créé si nécessaire. Le rapport inclut les métriques originales, les comparaisons de provenance (neuf pour Y01 avec reprise, huit pour Y02) et les époques portant les meilleurs scores CSV. `PASS` indique la cohérence des fichiers contrôlés, pas une évaluation du modèle. Les fichiers `.pt` ne sont pas chargés par PyTorch. Pour une autre session, adapter explicitement l'identifiant et les contrats des rapports ; ce n'est pas un importeur universel. Deux exécutions sur les ZIP réels ont vérifié l'import et sa répétabilité sans écrasement de fichiers différents. [Analyse](24_Y01_COLAB_RESULTS.md).
 
 ## Copie de la documentation — `scripts/sync_markdowns.py`
 

@@ -27,10 +27,12 @@ from pfe_events.stereo import predict_stereo, StereoConfig
 from pfe_events.reference_diagnostic import box_support
 
 
-def infer_pair(left, right, maps, calibration, normalizer, end, window, step, stereo):
+def infer_pair(left, right, maps, calibration, normalizer, end, window, step, stereo, *, demo_motion=False):
     """Model inputs contain events, calibration and dates only, never boxes/RGB."""
     if (any(type(v) is not int for v in (end, window, step))
-            or not 0 < step <= window or step > RigidMotionConfig().max_interval_us):
+            or not 0 < step <= RigidMotionConfig().max_interval_us or window <= 0
+            or (not demo_motion and step > window)
+            or (demo_motion and (window, step) != (50000, 100000))):
         raise ValueError('Integer causal dates and 0 < step <= window required')
     begin = time.perf_counter()
     previous_end = end-step
@@ -48,13 +50,26 @@ def infer_pair(left, right, maps, calibration, normalizer, end, window, step, st
     common = {'previous_us': previous_end, 'current_us': end, 'depth_us': previous_end,
               'current_event_count': len(current_events['x']), 'current_rectification_dropped': dropped,
               'windows_us': [[previous_end-window, previous_end], [end-window, end]],
-              'overlap_us': window-step, 'tracking': {'checked_tracks': 0},
+              'overlap_us': max(0, window-step), 'tracking': {'checked_tracks': 0},
               'rigid': {'valid': False, 'status': 'INSUFFICIENT_HISTORY', 'point_status': []},
               'timing_ms': {'current_read_representation': (activity_time-begin)*1000}}
     if any(previous_end-window < r.first_us or previous_end > r.last_us for r in (left, right)):
         common['status'] = 'INSUFFICIENT_HISTORY'
         common['available_history_us_left_right'] = [end-r.first_us for r in (left, right)]
         common['required_history_us'] = window+step
+        common['timing_ms']['pipeline'] = (time.perf_counter()-begin)*1000
+        return output, common
+    if demo_motion:
+        from pfe_events.clip_motion import infer_clip_motion
+        arrays, model, details = infer_clip_motion((left, right), maps, calibration,
+                                                   normalizer, current, end_us=end)
+        # The shared implementation exports sampled depths, not its full stereo maps.
+        for key in ('previous_image', 'depth_m', 'disparity_px', 'depth_valid'):
+            output.pop(key)
+        output.update(arrays)
+        common.update(status='PAIR_PROCESSED', rigid=model,
+                      tracking={'checked_tracks': len(arrays['current'])},
+                      demo_motion_details=details, depth_map_exported=False)
         common['timing_ms']['pipeline'] = (time.perf_counter()-begin)*1000
         return output, common
     images, event_counts = [], []
@@ -114,10 +129,16 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='Fresh experiment directory')
     parser.add_argument('--config', type=Path, default=ROOT / 'configs/m17_reference_diagnostic.json',
                         help='Frozen protocol; defaults to the historical M17 configuration')
+    parser.add_argument('--demo-motion', action='store_true',
+                        help='Use the existing demo 100 ms motion function with 20 ms seed check')
     args = parser.parse_args()
     if args.output.exists(): raise FileExistsError('Use a fresh output directory')
     protocol_path = args.config.resolve()
     protocol = json.loads(protocol_path.read_text())
+    if args.demo_motion:
+        protocol.update(experiment='DEMO_100MS_REFERENCE', window_us=50000, step_us=100000,
+                        temporal_limit='Exact demo motion: 50 ms images, 20 ms seed check, 100 ms tracking; 150 ms history required',
+                        inference_function='pfe_events.clip_motion.infer_clip_motion')
     reference = json.loads((ROOT / protocol['reference']).read_text())
     pilot = json.loads((ROOT / protocol['source_manifest']).read_text())
     allowed = {s['name'] for s in pilot['sequences'] if s['split'] == 'train'}
@@ -151,6 +172,8 @@ def main():
                     protocol['reference'], protocol['source_manifest'], protocol['normalizer'], protocol['stereo_reference_config']]
     if protocol.get('frozen_model_reference'):
         source_files.append(protocol['frozen_model_reference'])
+    if args.demo_motion:
+        source_files.append('src/pfe_events/clip_motion.py')
     report = {'experiment': protocol['experiment'], 'status': 'RUNNING', 'utc': datetime.now(timezone.utc).isoformat(),
               'protocol': protocol, 'stereo': asdict(stereo), 'tracking': asdict(TrackingConfig()),
               'rigid': asdict(RigidMotionConfig()), 'versions': {'opencv': cv2.__version__, 'numpy': np.__version__},
@@ -166,8 +189,7 @@ def main():
         for sequence in sorted({f['sequence'] for f in frames}):
             folder = ROOT / 'data/raw' / sequence
             calib_path = folder / 'calibration/cam_to_cam.yaml'
-            calibration = audit_calibration(calib_path)
-            if not calibration['canonical_equal_intrinsics']: raise ValueError('Unsupported event geometry')
+            calibration = audit_calibration(calib_path, require_canonical=True)
             paths = [folder / f'events_{side}/events.h5' for side in ('left', 'right')]
             map_paths = [folder / f'events_{side}/rectify_map.h5' for side in ('left', 'right')]
             for path in [calib_path, *paths, *map_paths]:
@@ -178,7 +200,7 @@ def main():
                 jobs = [(f['mod_frame'], f['timestamp_us']) for f in frames if f['sequence'] == sequence]
                 for index, end in jobs:
                     arrays, inference = infer_pair(*readers, maps, calibration, normalizer, end,
-                        protocol['window_us'], protocol['step_us'], stereo)
+                        protocol['window_us'], protocol['step_us'], stereo, demo_motion=args.demo_motion)
                     cid = f'{sequence}_{index:06d}'
                     np.savez_compressed(args.output / f'{cid}.npz', **arrays)
                     write_json(args.output / f'{cid}_inference.json', inference)

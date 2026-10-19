@@ -1,5 +1,29 @@
 # Mesure de rapidité et ressources
 
+## Publication avant la stéréo courante — 18 octobre 2026
+
+Dernier contrôle dédié Y01, contexte 100 ms : calcul jusqu'aux indices de mouvement **243,23→169,58 ms médians** après déplacement de la stéréo courante après leur publication. La profondeur t−100 ms reste requise et strictement datée ; la stéréo de t est toujours calculée pour la suite et les XYZ courants. **153 tableaux et 17 lignes scientifiques identiques**, 314 tests passent. Le calcul complet passe de **246,25 à 263,42 ms** : aucune amélioration globale de débit établie. Charge et caches variables sur une seule paire de rejeux ; aucun délai de début de mouvement mesuré, mobilité non validée. Mouvement seul et calcul complet dépassent 20 ms sur 17/17 dates. [Preuves](../outputs/motion_publication_20261018/verification.json).
+
+Dans ce parcours, `motion_ready = read_representations + motion`. `stereo` mesure la stéréo courante et l'insertion dans le cache après publication ; la stéréo historique manquante reste incluse dans `motion`. `full_pipeline` additionne lecture/représentation, mouvement, stéréo courante, YOLO et association, en excluant le coût de publication enregistré séparément. Les mesures datées ci-dessous gardent leur périmètre historique.
+
+## Mouvement prioritaire et contexte à 100 ms — 18 octobre 2026
+
+Choix utilisateur : mouvement prioritaire, classe et 3D moins fréquentes. Comparaison dédiée entre contexte à chaque date source (20 ms) et toutes les 100 ms dataset : **17→4 appels YOLO/XYZ**, calcul complet médian **277,63→225,14 ms**. Les images, disparités et suivis sont identiques (153 tableaux), comme les 17 modèles de mouvement et les contextes aux quatre dates communes. Le coût jusqu'aux indices de mouvement est **218,11→220,72 ms** : la baisse des appels YOLO n'accélère pas le calcul propre de cette branche. **17/17 sorties dépassent toujours 20 ms.**
+
+`motion_ready` est un sous-coût cumulé avant publication et contexte, pas une étape à additionner aux autres. Le flux `motion.jsonl` est écrit et vidé avant le YOLO éventuel ; son coût de publication figure séparément dans chaque ligne et dans le service séquentiel complet, pas dans `full_pipeline`. Le rejeu reste séquentiel : le contexte peut retarder la date de mouvement suivante. L'âge du contexte est exprimé en temps dataset, jamais en latence système. Une médiane YOLO proche de zéro sur l'ensemble des dates signifie que 13 dates n'exécutent pas YOLO, pas que le réseau est devenu instantané. Stéréo interne toujours calculée à chaque date ; aucune profondeur ancienne réutilisée à une mauvaise date.
+
+Comparaison unique hors ligne avec variations des autres postes/démarrage ; aucun délai physique de début de mouvement, aucun rappel des objets entre actualisations du contexte. [Preuves et métriques complètes](../outputs/motion_priority_20261018/verification.json).
+
+## Contrôle antérieur : représentations concurrentes
+
+**Dernier contrôle Y01 — 18 octobre 2026.** Le worker stéréo existant prépare aussi l'image événementielle droite pendant la gauche. Préparation sur entrées résidentes, 17 dates et six répétitions appariées alternées par date : **108,32→89,76 ms médians**, p95 **135,10→108,64 ms**, 306 comparaisons exactes. Ce contrôle exclut lecture, initialisation, historique, inférence et rendu. [Mesures appariées](../outputs/representation_speed_20261018/paired_representations.json).
+
+Rejeux intégrés avant/après : lecture/représentation **118,01→108,98 ms**, calcul complet **358,81→315,65 ms** médians. 153 tableaux et 17 résultats scientifiques identiques ; **17/17 dépassements de 20 ms**, aucun gain de fiabilité de mobilité annoncé. Les autres coûts et le démarrage varient ; ne pas attribuer toute la baisse globale au parallélisme, ni utiliser le rejeu à 270 ms du 17 octobre comme contrôle de vitesse. [Comparaison et scopes](../outputs/representation_speed_20261018/verification.json).
+
+Pic d'allocations suivi par `tracemalloc` sur une fenêtre ancre, en contrôle distinct sans chronométrage : **63,7→69,8 Mio**. Entrées et tables de rectification déjà présentes exclues ; il ne s'agit pas du RSS du processus. Aucun cache temporel supplémentaire, un seul worker persistant partagé entre les phases représentation et stéréo. [Contrôle mémoire](../outputs/representation_speed_20261018/memory.json).
+
+**Mesures historiques par composant.** Ne pas comparer directement les millisecondes M01/M02 aux coûts du pipeline complet. Le contrôle intégré Y02 du 17 octobre mesure 257,8 ms médians après parallélisme stéréo, contre 310,5 ms avant dans sa comparaison dédiée. La stéréo passe de 111,3 à 71,9 ms. Les autres postes varient aussi ; une seule paire de rejeux ne permet pas d'attribuer tout le gain global à cette correction. Mesures hors initialisation/rendu/export, pour un pas source de 20 ms : temps réel non atteint. [Mesures actuelles et portée](20_NEXT_STEPS.md).
+
 ## Lecture indexée — mesures M02
 
 Comparaison appariée à paramètres et fenêtres identiques, deux passages avec ordre alterné. Sur `thun_00_a` à 10 ms : lecture médiane 6,91→4,18 ms ; lecture+activité médiane 10,54→7,70 ms et p95 12,27→9,47 ms. Événements, cartes et régions identiques. Les mesures historiques M01 ci-dessous ne servent pas de dénominateur à ce gain, car les conditions de cache/charge changent.

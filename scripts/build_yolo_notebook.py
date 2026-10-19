@@ -1,6 +1,7 @@
 """Build the unexecuted Colab notebook from verified export/source metadata."""
 
 import ast
+import argparse
 import json
 import textwrap
 from pathlib import Path
@@ -9,7 +10,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    export = json.loads((ROOT/"outputs/reports/Y00_export.json").read_text())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--export-report', type=Path, default=ROOT/'outputs/reports/Y00_export.json')
+    parser.add_argument('--output', type=Path, default=ROOT/'notebooks/Y01_yolo11n_events_pilot.ipynb')
+    args = parser.parse_args()
+    export = json.loads(args.export_report.read_text())
+    class_names = {int(k): v for k, v in export.get('names', {'0': 'person', '1': 'car'}).items()}
+    nc = len(class_names)
+    if class_names not in ({0: 'person', 1: 'car'}, {0: 'person', 1: 'car', 2: 'truck'}):
+        raise ValueError('Unsupported class profile')
+    if nc == 3 and args.output.resolve() == (ROOT/'notebooks/Y01_yolo11n_events_pilot.ipynb').resolve():
+        raise ValueError('Choose a new notebook destination for the truck extension')
+    experiment = 'Y02' if nc == 3 else 'Y01'
+    counts = export['verification']['counts']
+    missing = export['verification'].get('validation_missing_classes', [])
     source = json.loads((ROOT/"outputs/reports/ultralytics_source_audit/provenance.json").read_text())
     archive_name = export["archive"].replace("\\", "/").rsplit("/", 1)[-1]
     dataset_name = Path(archive_name).stem
@@ -24,15 +38,18 @@ def main():
         cells.append(value)
 
     add("markdown", f"""
-    # PFE — YOLO11n sur événements DSEC : pilote Y01
+    # YOLO11n sur événements DSEC : pilote {experiment}
 
     **Statut livré : NOT RUN sur Colab.** L'export Y00 est réel et vérifié localement ; aucune métrique de réseau n'est fournie.
 
-    Classes : 0=person (pedestrian DSEC), 1=car. Les autres objets sont du fond pour ce pilote. Images natives 640×480,
+    Classes : {class_names}. Person correspond à pedestrian DSEC. Les classes exclues deviennent du fond. Images natives 640×480,
     fenêtre causale 50 ms, canaux PNG R/G/B = positif/négatif/total. Ce ne sont pas des couleurs de scène.
 
-    Train : 536 images du groupe zurich_city_04. Validation locale : 238 images thun_00_a.
+    Train : {counts['train']['images']} images du groupe zurich_city_04. Validation locale : {counts['val']['images']} images thun_00_a.
     Aucune image du test réservé. Les nombreuses dates voisines ne sont pas des observations indépendantes.
+    **Classes absentes de la validation : {missing or 'aucune'}.** Leur AP sera `null`, jamais inventée.
+    Le meilleur checkpoint est choisi uniquement sur les classes évaluables. Il ne valide pas une classe absente.
+    Ce notebook prépare un essai ; il ne remplace pas automatiquement le modèle du démonstrateur.
 
     **Utilisation :** importer ce notebook dans Colab, choisir un runtime GPU, exécuter les cellules dans l'ordre.
     Placer `{archive_name}` dans `Mon Drive/PFE3/data/`, ou utiliser le téléversement proposé si absent.
@@ -47,6 +64,9 @@ def main():
     add("code", f"""
     import sys, subprocess, platform, json, os
     from pathlib import Path
+    CLASS_NAMES = {class_names!r}
+    EXPERIMENT = {experiment!r}
+    VALIDATION_SUPPORT = {counts['val']['boxes']!r}
     import torch
     assert sys.version_info >= (3, 11), "Ce notebook requiert Python >=3.11."
     assert torch.cuda.is_available(), "Sélectionner Exécution > Modifier le type d'exécution > GPU, puis relancer."
@@ -61,7 +81,7 @@ def main():
     from google.colab import drive
     drive.mount('/content/drive')
     DRIVE_ROOT = Path('/content/drive/MyDrive/PFE3')
-    SESSION = 'Y01_' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    SESSION = EXPERIMENT + '_' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     RUN_DIR = DRIVE_ROOT / 'runs' / SESSION
     RUN_DIR.mkdir(parents=True, exist_ok=False)
     def write_json(path, value):
@@ -123,6 +143,7 @@ def main():
     for name in ('manifest.json', 'normalizer.json', 'NOTICE.txt'):
         shutil.copy2(DATA_ROOT/name, RUN_DIR/name)
     data = yaml.safe_load((DATA_ROOT/'data.yaml').read_text())
+    assert data['names'] == CLASS_NAMES
     data['path'] = str(DATA_ROOT)
     DATA_YAML = DATA_ROOT/'data_runtime.yaml'
     DATA_YAML.write_text(yaml.safe_dump(data))
@@ -145,7 +166,7 @@ def main():
                   mosaic=0.0, mixup=0.0, cutmix=0.0, copy_paste=0.0,
                   degrees=0.0, translate=0.0, scale=0.0, shear=0.0, perspective=0.0,
                   flipud=0.0, fliplr=0.0)
-    runtime_data = {**data, 'nc': 2, 'channels': 3}
+    runtime_data = {**data, 'nc': len(CLASS_NAMES), 'channels': 3}
     def make_dataset(split, augment):
         hyp = get_cfg(overrides=dict(imgsz=640, task='detect', **NO_AUG))
         return YOLODataset(img_path=str(DATA_ROOT/'images'/split), imgsz=640, batch_size=4,
@@ -187,12 +208,22 @@ def main():
     CHECKS_PASSED = True
     # Même avec des transformations identités, RandomPerspective filtre de très
     # petites boîtes. Publier ce décompte, distinct du nombre de labels exportés.
-    train_boxes_loaded = sum(len(train_dataset[i]['cls']) for i in range(len(train_dataset)))
+    train_class_boxes_loaded = np.zeros(len(CLASS_NAMES), dtype=np.int64)
+    for i in range(len(train_dataset)):
+        ids = train_dataset[i]['cls'].numpy().ravel().astype(np.int64)
+        train_class_boxes_loaded += np.bincount(ids, minlength=len(CLASS_NAMES))
+    train_boxes_loaded = int(train_class_boxes_loaded.sum())
     train_boxes_exported = sum(f['conversion']['kept'] for f in manifest['frames'] if f['split']=='train')
+    mapping = {int(k): v for k,v in manifest['class_mapping'].items()}
+    train_class_boxes_exported = np.bincount([mapping[c] for f in manifest['frames'] if f['split']=='train'
+                                               for c in f['source_class_ids_kept']], minlength=len(CLASS_NAMES))
     assert 0 < train_boxes_loaded <= train_boxes_exported
+    assert np.all(train_class_boxes_loaded > 0) and np.all(train_class_boxes_loaded <= train_class_boxes_exported)
     write_json(RUN_DIR/'tensor-check.json', {'status':'PASS', 'images_checked':6,
                'channels':['positive','negative','total'], 'letterbox':[80,80], 'training':'NOT RUN',
                'train_boxes_exported':train_boxes_exported, 'train_boxes_loaded':train_boxes_loaded,
+               'train_boxes_exported_by_class':train_class_boxes_exported.tolist(),
+               'train_boxes_loaded_by_class':train_class_boxes_loaded.tolist(),
                'train_boxes_filtered_by_framework':train_boxes_exported-train_boxes_loaded})
     """)
     add("markdown", """
@@ -225,12 +256,18 @@ def main():
     OVERFIT_MIN_AP50 = 0.80  # garde diagnostic par classe, pas seuil de validation scientifique
     write_json(RUN_DIR/'requested-config.json', {'common':COMMON, 'overfit_common':OVERFIT_COMMON, 'overfit_epochs':OVERFIT_EPOCHS,
                'pilot_epochs':PILOT_EPOCHS, 'overfit_min_ap50':OVERFIT_MIN_AP50})
-    def metrics_dict(metrics, purpose):
+    def metrics_dict(metrics, purpose, support):
         per_class = []
-        for i, cls in enumerate(metrics.box.ap_class_index):
-            per_class.append({'class_id':int(cls), 'name':data['names'][int(cls)],
-                              'ap50':float(metrics.box.ap50[i]), 'ap50_95':float(metrics.box.ap[i])})
+        indexes = {int(cls): i for i, cls in enumerate(metrics.box.ap_class_index)}
+        for cls, name in CLASS_NAMES.items():
+            i = indexes.get(cls)
+            available = support[cls] > 0 and i is not None
+            per_class.append({'class_id':cls, 'name':name, 'label_support':int(support[cls]),
+                              'status':'EVALUATED' if available else 'NOT_EVALUATED',
+                              'ap50':float(metrics.box.ap50[i]) if available else None,
+                              'ap50_95':float(metrics.box.ap[i]) if available else None})
         return {'purpose':purpose, 'map50':float(metrics.box.map50), 'map50_95':float(metrics.box.map),
+                'map_scope':'Framework aggregate over supported classes only; not all-class validation',
                 'per_class':per_class, 'validation_conf_floor':0.001, 'nms_iou':0.7,
                 'max_det':300, 'metrics':{k:float(v) for k,v in metrics.results_dict.items()}}
     """)
@@ -248,7 +285,8 @@ def main():
     for relative in (DATA_ROOT/'overfit.txt').read_text().splitlines():
         label = DATA_ROOT/relative.removeprefix('./').replace('images/','labels/')
         overfit_classes.extend(int(line.split()[0]) for line in label.with_suffix('.txt').read_text().splitlines())
-    assert set(overfit_classes) == {0,1}, 'Le petit lot doit contenir les deux classes.'
+    assert set(overfit_classes) == set(CLASS_NAMES), 'Le petit lot doit contenir toutes les classes.'
+    overfit_support = np.bincount(overfit_classes, minlength=len(CLASS_NAMES)).tolist()
     write_json(RUN_DIR/'status.json', {'status':'OVERFIT_RUNNING', 'generalization':'NOT EVALUATED'})
     try:
         model = YOLO(str(INITIAL))
@@ -263,10 +301,10 @@ def main():
         overfit_metrics = YOLO(str(OVERFIT_BEST)).val(data=str(OVERFIT_YAML), imgsz=640, batch=4, device=0,
                              conf=0.001, iou=0.7, max_det=300, workers=2,
                              project=str(RUN_DIR), name='overfit_check', plots=True)
-        overfit_report = metrics_dict(overfit_metrics, 'TRAIN-SET FIT DIAGNOSTIC; NOT GENERALIZATION')
+        overfit_report = metrics_dict(overfit_metrics, 'TRAIN-SET FIT DIAGNOSTIC; NOT GENERALIZATION', overfit_support)
         overfit_report['optimizer_steps'] = optimizer_counter['steps']
         write_json(RUN_DIR/'overfit-metrics.json', overfit_report)
-        OVERFIT_PASSED = len(overfit_report['per_class']) == 2 and all(r['ap50'] >= OVERFIT_MIN_AP50 for r in overfit_report['per_class'])
+        OVERFIT_PASSED = all(r['ap50'] is not None and r['ap50'] >= OVERFIT_MIN_AP50 for r in overfit_report['per_class'])
         assert OVERFIT_PASSED, 'Surapprentissage insuffisant : inspecter lot, labels et courbes avant de poursuivre.'
         write_json(RUN_DIR/'status.json', {'status':'OVERFIT_PASSED', 'pilot':'NOT RUN'})
     except Exception as error:
@@ -288,8 +326,10 @@ def main():
         validation = YOLO(str(BEST)).val(data=str(DATA_YAML), split='val', imgsz=640, batch=4, device=0,
                      conf=0.001, iou=0.7, max_det=300, workers=2,
                      project=str(RUN_DIR), name='pilot_validation', plots=True)
-        report = metrics_dict(validation, 'LOCAL VALIDATION thun_00_a; NOT OFFICIAL BENCHMARK')
+        report = metrics_dict(validation, 'LOCAL VALIDATION thun_00_a; NOT OFFICIAL BENCHMARK', VALIDATION_SUPPORT)
         report.update({'best_sha256':sha256(BEST), 'last_sha256':sha256(LAST),
+                       'checkpoint_selection_classes':[CLASS_NAMES[i] for i, n in enumerate(VALIDATION_SUPPORT) if n],
+                       'truck_independent_quality':'NOT EVALUATED' if 'truck' in CLASS_NAMES.values() and not VALIDATION_SUPPORT[2] else 'SEE PER CLASS',
                        'peak_gpu_allocated_bytes':torch.cuda.max_memory_allocated(),
                        'dataset_sha256':EXPECTED_ARCHIVE_SHA256})
         write_json(RUN_DIR/'pilot-metrics.json', report)
@@ -323,10 +363,9 @@ def main():
     """)
     notebook = {"cells": cells, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                 "language_info": {"name": "python"}, "accelerator": "GPU",
-                "colab": {"name": "Y01_yolo11n_events_pilot.ipynb", "provenance": []}}, "nbformat": 4, "nbformat_minor": 5}
-    folder = ROOT/"notebooks"
-    folder.mkdir(exist_ok=True)
-    path = folder/"Y01_yolo11n_events_pilot.ipynb"
+                "colab": {"name": args.output.name, "provenance": []}}, "nbformat": 4, "nbformat_minor": 5}
+    path = args.output
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"Created {path}: {len(cells)} cells; code parsed; GPU cells NOT RUN")
 

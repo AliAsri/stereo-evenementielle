@@ -1,5 +1,7 @@
 # Plan de réalisation — 12 à 16 semaines
 
+**Plan initial, conservé comme historique.** EMatch, les nouveaux datasets et les comparaisons d’architectures ne sont pas des actions automatiques. La seule liste de reprise est [la feuille de route actuelle](20_NEXT_STEPS.md).
+
 **Réorientation demandée le 4 octobre 2026 :** la branche de détection rapide du mouvement passe avant l'allongement de l'entraînement YOLO. M01 fournit une première activité causale ; la prochaine porte est le délai mesuré, avec contrôle du mouvement de caméra. Le tableau ci-dessous conserve le calendrier initial, mais l'activité et son évaluation sont avancées dès maintenant. [Priorités actuelles](20_NEXT_STEPS.md).
 
 Départ de référence : 3 octobre 2026. Douze semaines mènent au 26 décembre 2026 ; seize semaines au 23 janvier 2027. Ce sont des jalons de planification, pas une échéance de soutenance déclarée par l'utilisateur. Hypothèse de capacité : 15–20 heures de travail technique par semaine, à adapter ; aucune disponibilité personnelle n'est présumée confirmée.

@@ -1,4 +1,74 @@
-# Organisation et maintenance — refactoring R01
+# Organisation, revue et maintenance
+
+## Revue globale du 15 octobre 2026
+
+**Verdict : les composants choisis restent cohérents avec le sujet, mais le livrable scientifique n’est pas encore validé.** Le projet possède une chaîne réelle événements → YOLO → stéréo → surface 3D → indices de mouvement. Il ne démontre pas encore la détection rapide et fiable d’un mouvement indépendant de la caméra. La suite doit produire cette preuve ou exposer précisément sa limite, plutôt qu’accumuler des variantes.
+
+La revue a confronté le cahier des charges, les décisions datées, le parcours intégré, les données/exportations et les preuves enregistrées. Les contrôles globaux couvrent le chargement des commandes et la suite de tests ; le rejeu réel couvre le parcours principal Y02 sur l’extrait existant. Les anciens entraînements Colab, tous les diagnostics historiques, un test GPU et un test matériel de caméra n’ont pas été réexécutés. Ce bilan ne promet pas l’absence de tout défaut.
+
+### Ce qui est solide
+
+- Les lecteurs conservent des fenêtres causales demi-ouvertes et contrôlent les horloges. Le cache réutilise uniquement des dates exactes dans un contexte de rejeu borné.
+- Les événements natifs alimentent YOLO ; les vues rectifiées alimentent la stéréo et le suivi. La profondeur du mouvement appartient à l’instant précédent ; celle associée à une boîte appartient au même instant que la boîte.
+- Le train et la validation sont séparés par groupe de trajet ; le normaliseur est ajusté sur le train. Les exports conservent labels, timestamps et empreintes. L’absence de camion en validation est explicite.
+- Le démonstrateur calcule réellement ses sorties depuis les événements et les poids ; les boîtes de référence et la profondeur GT ne guident pas cette inférence.
+- Les abstentions et limites sont explicites. Le point XYZ est une surface visible, et le résidu n’est pas présenté comme une preuve de mobilité.
+
+### Défauts corrigés et refactoring ciblé
+
+| Constat | Correction | Effet attendu |
+|---|---|---|
+| Le démonstrateur ne faisait pas respecter le contrat de calibration déjà exigé par le diagnostic de référence. L’audit ne rejetait pas explicitement les intrinsèques non finis, une résolution incohérente ou une base nulle. | Validation commune dans `audit_calibration`, option `require_canonical` réutilisée par les deux commandes ; le démonstrateur exige sa résolution figée 640×480. | Échec explicite sur des entrées incompatibles, avant le chargement du modèle. Les calibrations actuelles restent acceptées. |
+| L’ordre des canaux déclaré dans un normaliseur pouvait être incompatible avec les échelles utilisées sans être signalé. | `normalized_event_image` vérifie les métadonnées de canaux lorsqu’elles sont présentes, y compris dans le chemin canal total. | Empêche une mauvaise interprétation silencieuse des échelles ; les appels synthétiques à échelles seules restent compatibles. |
+| L’import Colab supposait que `outputs/reports` existait ; un `--dataset` externe échouait lors du calcul du chemin relatif du ZIP. | Création du dossier de rapport et conservation d’un chemin absolu pour les fichiers hors projet. Test de premier import dans un dossier neuf, sur preuves synthétiques. | Import reproductible sans dépendre de l’ordre d’exécution d’autres scripts. Le statut PASS reste un contrôle de fichiers, pas une validation scientifique. |
+| La feuille de route contenait 947 lignes et plusieurs « résultats actuels » ou « prochaines étapes » incompatibles selon leur date. | Page active ramenée à 56 lignes ; contenu précédent conservé intégralement dans `19_PROGRESS.md`. README, guide du code, architecture et pages historiques réorientés. | Une seule reprise lisible, sans effacer les décisions ou résultats passés. |
+
+Aucun seuil scientifique, checkpoint par défaut, partition ou résultat expérimental n’a été changé par cette revue. Le refactoring mutualise un contrôle existant et clarifie les responsabilités ; aucune nouvelle couche d’architecture n’est ajoutée.
+
+### Vérifications exécutées
+
+| Contrôle | Résultat |
+|---|---|
+| Avant modifications | 252 tests, 115 fichiers Python, 42 aides CLI réussis |
+| Après modifications | **255 tests, 115 fichiers Python, 42 aides CLI réussis** |
+| Dépendances installées | `pip check` réussi dans les deux environnements ; contrôle de `.venv-demo` piloté par le pip de `.venv` |
+| Entrées du démonstrateur Y01 | **8 tailles et SHA256 conformes** à `configs/demo_assets.json` |
+| Exports à deux et trois classes | **Deux PASS**, chacun 774 images et 1 560 fichiers hachés ; groupes séparés ; camion absent de validation déclaré |
+| Rejeu Y02 depuis les événements | **17 images, 83 occurrences, 74 surfaces, 9 abstentions** |
+| Régression contre le dernier rejeu Y02 | **153 tableaux et tous les résultats scientifiques des 17 images identiques**, hors chronométrages ; versions et empreintes d’entrées identiques |
+| Documentation | Ancienne feuille de route intégralement conservée ; liens locaux contrôlés et miroir Markdown synchronisé |
+
+Le rejeu de revue mesure 356,1 ms médians de calcul complet, hors initialisation/rendu/export. Il sert à vérifier la conservation des résultats ; il ne prouve pas un gain ou une régression de vitesse par rapport au benchmark précédent de 345,8 ms. Le démarrage et la charge varient ; toutes les sorties dépassent encore le budget source de 20 ms.
+
+Preuves locales : [contrôles finaux](../outputs/reviews/global_20261015/final_checks/report.json), [tests](../outputs/reviews/global_20261015/final_checks/tests.log), [régression](../outputs/reviews/global_20261015/regression.json), [export trois classes](../outputs/reviews/global_20261015/truck_export.json), [export deux classes](../outputs/reviews/global_20261015/pilot_export.json), [rejeu](../outputs/reviews/global_20261015/replay_y02/clip.gif). Les fichiers modifiés ont une copie préalable sous `outputs/reviews/global_20261015/before/`, suffixée `.bak`.
+
+### Nettoyage du dossier
+
+Inventaire au début de la revue : **38 456 fichiers, 3 883 dossiers, environ 6,69 Gio**. Environ **75 % des fichiers sont dans `.venv` et `.venv-demo`**. Git suit **192 fichiers**, aucun de plus de 1 Mo ; ce nombre ne comprend pas les nouveaux fichiers de travail non encore suivis. Le code Python contrôlé compte 36 fichiers de bibliothèque, 46 scripts et 33 fichiers de tests.
+
+| Ensemble local | Taille approximative | Décision |
+|---|---:|---|
+| Données | 4,39 Gio | Conserver les originaux, exports et références |
+| Deux environnements Python | 1,24 Gio | Conserver : inspection légère et exécution YOLO ont des rôles distincts |
+| Résultats | 1,04 Gio | Conserver les preuves et expériences historiques |
+| Miroir Markdown | Moins de 1 Mio à l’inventaire | Synchroniser, garder hors Git |
+
+**91 fichiers de cache Python générés, environ 0,92 Mio, supprimés** dans quatre dossiers `__pycache__` sous `src`, `scripts` et `tests`, après les contrôles. Ces fichiers se recréent automatiquement. Aucun dataset, checkpoint, environnement, expérience, document source ou résultat antérieur n’a été supprimé. Pas de suppression massive ni de nouvelle dépendance.
+
+[Inventaire](../outputs/reviews/global_20261015/inventory.json) · [Nettoyage des caches](../outputs/reviews/global_20261015/cache_cleanup.json).
+
+### Sommes-nous dans la bonne voie ?
+
+**Oui pour les briques et la traçabilité ; pas encore pour la démonstration de l’objectif principal.** Les événements, la stéréo, YOLO et XYZ restent bien dans le périmètre demandé. L’excès se situe dans l’accumulation des diagnostics et de leur documentation. Les gains sur les classes ou sur un tri de pixels ne suffisent pas à valider le mouvement indépendant.
+
+Les blocages restent le coût complet supérieur au budget, la sensibilité du modèle de caméra, le support de profondeur et de suivi incomplet, puis l’absence de validation camion indépendante. Le test réservé reste à préserver ; les références partielles du train ne permettent pas d’inventer une précision/rappel. La promotion de Y02 et les autres classes passent après leur qualification ; elles ne doivent pas détourner le projet du mouvement.
+
+La [feuille de route active](20_NEXT_STEPS.md#la-suite-utile) fixe la suite, avec un seul parcours, des critères mesurables et aucune nouvelle architecture par défaut.
+
+---
+
+## Archive R01 — organisation du 8 octobre 2026
+
 
 **8 octobre 2026.** Nettoyage demandé avant l'audit DSEC-MOD. Cette étape réorganise le code partagé et les accès à la documentation ; elle n'introduit pas de nouvelle méthode de détection et ne change aucun seuil scientifique.
 

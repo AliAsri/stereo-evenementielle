@@ -1,5 +1,7 @@
 # Périmètre technique et critères de réussite
 
+**Cadrage historique.** Les critères et extensions proposés ci-dessous ne sont pas tous réalisés ni tous encore actifs. État au 15 octobre : prototype intégré YOLO/stéréo/XYZ, temps réel et mobilité indépendante non validés. [Priorités et suite actuelles](20_NEXT_STEPS.md).
+
 Référence : 2026-10-03. Ce dépôt contient du code et des notes de travail, pas le mémoire.
 
 **Réorientation du 4 octobre 2026 :** priorité demandée par l'utilisateur à la détection rapide du mouvement. Développer d'abord une réponse événementielle causale mesurable, puis l'enrichir avec classe YOLO et profondeur/XYZ. M01 fournit une première carte d'activité et ses coûts ; la séparation mouvement de caméra/objet et le délai réel restent à évaluer. [Bilan](25_M01_RAPID_ACTIVITY.md).

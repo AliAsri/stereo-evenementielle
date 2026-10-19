@@ -1,4 +1,4 @@
-"""Import Y01 evidence from Colab ZIP parts without loading model checkpoints.
+"""Import Y01/Y02 evidence from Colab ZIP parts without loading model checkpoints.
 
 Keep metadata, figures and best/last/initial weights; leave epoch snapshots in ZIPs.
 Usage: python scripts/import_y01_results.py archive-001.zip archive-002.zip
@@ -9,6 +9,7 @@ import csv
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from pathlib import Path, PurePosixPath
 import stat
 import zipfile
@@ -26,12 +27,18 @@ def sha256(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archives", type=Path, nargs="+")
+    parser.add_argument('--run', default=RUN, help='Exact Colab session directory')
+    parser.add_argument('--dataset', type=Path, default=ROOT/'data/processed/dsec_yolo_pilot_v1')
     args = parser.parse_args()
+    run_name = args.run
+    if not re.fullmatch(r'Y0[12]_\d{8}T\d{6}Z', run_name):
+        raise ValueError('Expected a Y01/Y02 timestamped run name')
+    dataset = args.dataset.resolve()
     destination = ROOT / "outputs" / "colab"
     destination.mkdir(parents=True, exist_ok=True)
     if not destination.resolve().is_relative_to(ROOT):
         raise ValueError("Destination outside project")
-    report = {"run": RUN, "audited_utc": datetime.now(timezone.utc).isoformat(),
+    report = {"run": run_name, "audited_utc": datetime.now(timezone.utc).isoformat(),
               "method": "ZIP inventory, selective CRC-checked extraction and SHA256; no checkpoint deserialization or local model evaluation",
               "archives": [], "files": [], "checks": []}
     seen = set()
@@ -42,7 +49,7 @@ def main():
             for info in zipped.infolist():
                 path = PurePosixPath(info.filename)
                 if (path.is_absolute() or ".." in path.parts or "\\" in info.filename
-                        or ":" in info.filename or not path.parts or path.parts[0] != RUN
+                        or ":" in info.filename or not path.parts or path.parts[0] != run_name
                         or stat.S_ISLNK(info.external_attr >> 16)):
                     raise ValueError(f"Unsafe ZIP member: {info.filename}")
                 if info.is_dir():
@@ -76,14 +83,14 @@ def main():
                                   local_path=target.relative_to(ROOT).as_posix())
                 report["files"].append(record)
         report["archives"].append(entry)
-    run = destination / RUN
+    run = destination / run_name
 
     def read(name):
         return json.loads((run / name).read_text(encoding="utf-8"))
 
     def check(label, path, expected):
         actual = sha256(path)
-        report["checks"].append({"label": label, "path": str(path.relative_to(ROOT)),
+        report["checks"].append({"label": label, "path": str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path),
                                  "expected": expected, "actual": actual, "passed": actual == expected})
 
     provenance = read("dataset-provenance.json")
@@ -100,9 +107,9 @@ def main():
     # Compare the copied manifest and normalizer byte-for-byte with the local export.
     for name in ["manifest.json", "normalizer.json"]:
         check(f"local_export_{name}", run / name,
-              sha256(ROOT / "data/processed/dsec_yolo_pilot_v1" / name))
+              sha256(dataset / name))
         check(f"declared_{name}", run / name, provenance[f"{Path(name).stem}_sha256"])
-    check("dataset_zip", ROOT / "data/processed/dsec_yolo_pilot_v1.zip", provenance["archive_sha256"])
+    check("dataset_zip", dataset.with_suffix('.zip'), provenance["archive_sha256"])
     check("initial_checkpoint", run / "initial_weights/yolo11n.pt", read("checkpoint-provenance.json")["sha256"])
     pilot = report["pilot_metrics"]
     for name in ["best", "last"]:
@@ -123,7 +130,8 @@ def main():
     report["retained_files"] = sum(f["retained"] for f in report["files"])
     report["retained_bytes"] = sum(f["bytes"] for f in report["files"] if f["retained"])
     report["status"] = "PASS" if all(c["passed"] for c in report["checks"]) else "FAIL"
-    output = ROOT / "outputs/reports/Y01_colab_audit.json"
+    output = ROOT / 'outputs/reports' / f'{run_name[:3]}_colab_audit.json'
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({k: report[k] for k in ["status", "retained_files", "retained_bytes", "checks"]}, indent=2))
     if report["status"] != "PASS":

@@ -100,3 +100,77 @@ def timestamp_summary(times):
     return {'count': len(values), 'first_s': float(values[0]), 'last_s': float(values[-1]),
             'median_step_ms': float(np.median(delta) * 1000),
             'max_step_ms': float(delta.max() * 1000)}
+
+
+def pose_matrix(record, timestamp_s):
+    """EVIMO wxyz pose, with only six-decimal serialization tolerance (1.1 us).
+
+    Camera records map camera to the fixed initial-camera/world frame;
+    object records map object to camera. No timestamp interpolation is done.
+    """
+    offset = abs(float(record['ts']) - float(timestamp_s))
+    q = np.array([record['pos']['q'][v] for v in ('w', 'x', 'y', 'z')], float)
+    t = np.array([record['pos']['t'][v] for v in ('x', 'y', 'z')], float)
+    norm = np.linalg.norm(q)
+    if (not np.isfinite(timestamp_s) or not np.isfinite(offset) or offset > 1.1e-6
+            or not np.isfinite(q).all() or not np.isfinite(t).all()
+            or abs(norm - 1) > 1e-4):
+        raise ValueError('Invalid or unsynchronized reference pose')
+    w, x, y, z = q / norm  # Correct rounding only, not arbitrary quaternions.
+    result = np.eye(4)
+    result[:3, :3] = [[1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],
+                     [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],
+                     [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)]]
+    result[:3, 3] = t
+    return result
+
+
+def rotation_angle_deg(rotation):
+    return float(np.degrees(np.arccos(np.clip((np.trace(rotation)-1)/2, -1, 1))))
+
+
+def pose_pair_reference(previous, current):
+    """Reference transforms and finite-interval motion, never mobility labels.
+
+    Object displacement concerns its pose origin, not its visible centroid.
+    Rotation is reported too: an unchanged origin does not imply no motion.
+    """
+    dt = float(current['ts']) - float(previous['ts'])
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError('Positive finite reference interval required')
+    a = pose_matrix(previous['cam'], previous['ts'])
+    b = pose_matrix(current['cam'], current['ts'])
+    camera = np.linalg.inv(b) @ a
+    names = lambda f: {k for k, v in f.items() if k != 'cam' and isinstance(v, dict) and 'pos' in v}
+    before, after = names(previous), names(current)
+    objects = {}
+    for key in sorted(before & after, key=int):
+        pa = pose_matrix(previous[key], previous['ts'])
+        pb = pose_matrix(current[key], current['ts'])
+        wa, wb = a @ pa, b @ pb
+        objects[key] = dict(
+            transform_previous_to_current=(pb @ np.linalg.inv(pa)).tolist(),
+            apparent_origin_displacement_m=float(np.linalg.norm(pb[:3, 3]-pa[:3, 3])),
+            world_origin_displacement_m=float(np.linalg.norm(wb[:3, 3]-wa[:3, 3])),
+            world_rotation_deg=rotation_angle_deg(wb[:3, :3] @ wa[:3, :3].T))
+    return dict(interval_s=dt, transform_previous_to_current=camera.tolist(),
+                camera_origin_displacement_m=float(np.linalg.norm(b[:3, 3]-a[:3, 3])),
+                camera_rotation_deg=rotation_angle_deg(camera[:3, :3]),
+                missing_previous=sorted(after-before), missing_current=sorted(before-after),
+                objects=objects)
+
+
+def radtan_calibration(metadata):
+    """Use named coefficients, not EVIMO's legacy D=[k1,k2,k3,k4].
+
+    Producer dataset.h uses rational radial (k3 numerator, k4 denominator)
+    and p1/p2 tangential terms. Return OpenCV's eight-coefficient ordering.
+    """
+    if metadata['dist_model'] != 'radtan':
+        raise ValueError('This bounded control supports radtan only')
+    k = np.array([[metadata['fx'], 0, metadata['cx']],
+                  [0, metadata['fy'], metadata['cy']], [0, 0, 1]], float)
+    d = np.array([metadata[v] for v in ('k1', 'k2', 'p1', 'p2', 'k3', 'k4')] + [0, 0], float)
+    if not np.isfinite(k).all() or not np.isfinite(d).all() or min(k[0, 0], k[1, 1]) <= 0:
+        raise ValueError('Invalid calibration')
+    return k, d

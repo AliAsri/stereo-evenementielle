@@ -4,6 +4,7 @@ import sys
 import unittest
 
 import numpy as np
+import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'src'))
 from pfe_events.rigid_motion import estimate_rigid_motion, RigidMotionConfig
@@ -19,6 +20,22 @@ def run(scene, **kwargs):
 
 
 class RigidMotionTests(unittest.TestCase):
+    def test_unsupported_seed_is_not_silently_accepted(self):
+        with self.assertRaisesRegex(ValueError, 'does not expose'):
+            run(make_scene('combined'), config=RigidMotionConfig(seed=43))
+
+    def test_fit_preserves_global_opencv_random_stream(self):
+        scene = make_scene('combined')
+        expected = np.empty((8, 2), np.float64)
+        actual = np.empty_like(expected)
+        cv2.setRNGSeed(123)
+        cv2.randn(expected, 0, 1)
+        cv2.setRNGSeed(123)
+        first = run(scene)
+        cv2.randn(actual, 0, 1)
+        np.testing.assert_array_equal(actual, expected)
+        self.assertEqual(first, run(scene))
+
     def test_static_scene_and_camera_motion_have_no_residual_candidates(self):
         for kind in ('static', 'camera_translation', 'camera_rotation'):
             with self.subTest(kind=kind):
