@@ -36,6 +36,26 @@ class StereoConfig:
                 "P1": 8*self.block_size**2, "P2": 32*self.block_size**2,
                 "threads": cv2.getNumThreads()}
 
+    def depth_range(self, q):
+        """Nominal near limit for this search and canonical rectified Q.
+
+        Integer hypotheses are 0..D-1. SGBM does not refine the endpoint
+        beyond D-1; zero disparity is rejected by this pipeline. This is a
+        geometric search limit, not a guarantee of valid depth or accuracy.
+        """
+        q = np.asarray(q, dtype=float)
+        if q.shape != (4, 4) or not np.isfinite(q).all():
+            raise ValueError('Finite canonical rectified Q required for depth range')
+        expected = np.array([[1,0,0,q[0,3]], [0,1,0,q[1,3]],
+                             [0,0,0,q[2,3]], [0,0,q[3,2],0]], dtype=float)
+        if not np.allclose(q, expected) or q[2,3] <= 0 or q[3,2] <= 0:
+            raise ValueError('Canonical positive-focal, positive-baseline Q required for depth range')
+        max_disparity = self.num_disparities-1
+        return dict(min_disparity_px=0, max_disparity_px=max_disparity,
+                    min_z_m=float(q[2,3]/q[3,2]/max_disparity),
+                    coverage_guaranteed=False,
+                    meaning='NOMINAL_SEARCH_LIMIT_NOT_OBJECT_DISTANCE_OR_ACCURACY_GUARANTEE')
+
 
 def decode_sgbm(raw):
     """OpenCV signed Q4 disparity -> pixels. Zero/negative cannot yield depth."""

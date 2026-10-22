@@ -1,39 +1,60 @@
-# Détection d’objets mobiles par stéréo événementielle
+# Prototype de détection de mouvement par stéréo événementielle
 
-Objectif : distinguer le mouvement d’un objet de celui de la caméra, lui associer une classe et estimer une surface 3D lorsque les données le permettent. **Priorités : rapidité, détection fiable, puis 3D.** Cible confirmée : démonstration sur le PC actuel, avec le parcours CPU existant ; Colab reste disponible pour l’entraînement.
+**Prototype revu pour publication — 22 octobre 2026.** Démonstrateur CPU sur un extrait DSEC enregistré : suivi et compensation géométrique, contexte YOLO personne/voiture, surface XYZ et décision conditionnelle par détection. **La fiabilité physique du mouvement et le temps réel ne sont pas démontrés.** L'utilisateur choisit de finaliser ce prototype avec ses limites ; aucun nouveau dataset ou entraînement n'est requis pour consulter le résultat.
 
-**État au 19 octobre 2026 : prototype intégré sur données DSEC enregistrées.** Le temps réel et la détection fiable du mouvement indépendant restent à démontrer. [État actuel et prochaines étapes](docs/20_NEXT_STEPS.md) · [Audit technique et scientifique](docs/AUDIT_TECHNIQUE_SCIENTIFIQUE_18_OCTOBRE_2026.md) · [Historique depuis le début](docs/19_PROGRESS.md).
+## Voir le résultat
 
-## Un parcours principal
+[Ouvrir le GIF de référence](outputs/object_surface/integrated_f2_20261022/clip.gif) · [Première image avec décisions](outputs/object_surface/integrated_f2_20261022/first_frame.png) · [Vérification du rejeu](outputs/object_surface/integrated_f2_20261022/verification.json).
 
-Depuis la racine, sur le poste où les données et l’environnement sont préparés :
+Le GIF contient 17 dates et est ralenti cinq fois ; sa fluidité ne mesure pas le temps de calcul. Les résultats et les poids restent hors Git. Le paquet local `outputs/delivery/reviewed_20261022/prototype-local.zip` contient une copie du code courant, les trois petits artefacts figés et les résultats de présentation. Il exclut les environnements et les cinq gros fichiers DSEC. `DELIVERY_MANIFEST.json` dans le paquet décrit le contenu et ses SHA-256. Le paquet capture le dossier de travail courant ; il ne signifie pas que ces changements ont été publiés sur GitHub.
+
+## Relancer sur le PC préparé
+
+Depuis la racine, avec `.venv-demo` et les huit entrées décrites dans [configs/demo_assets.json](configs/demo_assets.json) :
 
 ```powershell
-.\.venv-demo\Scripts\python.exe scripts/run_integrated_demo.py --output outputs/demo_repeat
+.\.venv-demo\Scripts\python.exe -B scripts/run_integrated_demo.py --check-inputs
+.\.venv-demo\Scripts\python.exe -B scripts/run_integrated_demo.py --output outputs/demo_local_01
 ```
 
-Choisir un dossier neuf, puis ouvrir `outputs/demo_repeat/clip.gif`. **Le mouvement est prioritaire :** ses indices sont calculés à chaque date source (pas 20 ms) et publiés dans `motion.jsonl` avant l’image native couleur, la stéréo courante et le YOLO éventuel ; ils utilisent la profondeur exacte à t−100 ms. Le contexte YOLO/XYZ est actualisé toutes les **100 ms de temps dataset** par défaut ; `--context-step-ms 20` permet le contrôle à chaque date. La stéréo interne reste calculée à chaque date pour l'historique de compensation et les XYZ courants. Les contextes anciens sont datés et ne sont pas superposés à l'image courante. Ce traitement reste séquentiel et hors temps réel. **Y01 personne/voiture reste le modèle par défaut.** Le GIF est ralenti cinq fois ; sa fluidité ne mesure pas la vitesse du calcul.
+Choisir un dossier de sortie neuf ; les anciens résultats sont conservés. Le contrôle des tailles et empreintes est également imposé au démarrage du rejeu. La commande ne réentraîne aucun modèle. L'environnement local est Windows/Python 3.14, avec [requirements-demo-lock.txt](requirements-demo-lock.txt) ; une installation neuve et un autre poste n'ont pas été validés.
 
-Y02 personne/voiture/camion est disponible avec `--weights outputs/colab/Y02_20261015T134856Z/pilot/weights/best.pt`. [Voir le rejeu historique Y02 du 17 octobre](outputs/stereo_speed_20261017/after/clip.gif) · [Voir le parcours par défaut Y01 du 19 octobre](outputs/rectifier_buffers_20261019/after/clip.gif).
+Pour réutiliser le paquet sur un autre dossier local, copier les cinq fichiers DSEC vers les chemins du manifeste, préparer l'environnement décrit ci-dessous, puis exécuter les mêmes commandes. Une extraction seule permet de consulter le GIF ; elle ne permet pas de rejouer sans les données et dépendances.
 
-**Contrôle de cadence intégré :** le dernier contrôle du 19 octobre dépasse encore le budget de 20 ms sur 17/17 sorties. Le résumé distingue calcul, traitement avec rendu/écritures et retard FIFO simulé ; ce dernier n’est pas une latence caméra. [Mesures et décision](docs/20_NEXT_STEPS.md).
+## Ce qui est livré et vérifié
 
-## Résultats et limites
+| Élément | Résultat de référence du 22 octobre |
+|---|---|
+| Entrées et calculs | Huit tailles/SHA-256 conformes ; 153 tableaux et 17 messages de mouvement conservés |
+| Contexte | Quatre dates de contexte YOLO/XYZ, 18 occurrences de détection ; aucune identité persistante |
+| Décision conditionnelle | 2 mobiles estimées, 2 immobiles estimées, 14 indéterminées |
+| Surfaces XYZ | 13 estimations, 2 abstentions pour couches ambiguës, 3 profondeurs insuffisantes |
+| Contrôles logiciels de finalisation | 391 tests passent ; 129 fichiers Python et 47 aides CLI contrôlés |
+| Dépendances locales | `pip check` réussi dans les deux environnements existants |
 
-| Objectif | État observé | Limite |
-|---|---|---|
-| Rapidité locale, dernier contrôle Y01 | Mouvement **103,8 ms**, calcul complet **224,2 ms** médians | 17/17 dates au-dessus du budget de 20 ms ; une session hors ligne. |
-| Détection du mouvement | Candidats résiduels, compensation caméra et abstentions | Mobilité indépendante non validée. |
-| Classes et 3D | Y01 personne/voiture par défaut ; contexte YOLO/XYZ toutes les 100 ms dataset | Camion Y02 non qualifié indépendamment ; surface 3D pouvant appartenir au fond. |
-| Reproduction | 153 tableaux et 17 résultats exacts dans un dossier isolé, pour la version contrôlée | Environnement Python partagé ; installation neuve encore à vérifier. |
+[Contrôles finaux](outputs/reviews/prepush_20261022/checks/report.json) · [Règles et limites détaillées](docs/38_OBJECTIF_OBJETS_MOBILES.md) · [État et finalisation](docs/20_NEXT_STEPS.md).
 
-Les comparaisons de vitesse, métriques YOLO, essais écartés et références en attente sont conservés dans [l’état actif](docs/20_NEXT_STEPS.md) et [l’historique](docs/19_PROGRESS.md).
+Le calcul médian de ce rejeu est d'environ **109,1 ms jusqu'au mouvement** et **230,6 ms pour le parcours complet**, hors rendu/export ; la première image inclut le démarrage de l'inférence. Les 17 sorties dépassent le budget de comparaison de 20 ms. Une session hors ligne ne constitue pas un benchmark stable, une latence caméra ou un délai de détection du début du mouvement.
 
-Une boîte YOLO indique une classe. Un point orange indique un résidu supérieur à 3 px après compensation ; un point vert est compatible avec le modèle, un point gris reste inconnu. **Aucun de ces éléments ne prouve seul le mouvement propre.** XYZ désigne une surface échantillonnée pouvant appartenir au fond, pas le centre d’un objet.
+La revue avant publication refuse désormais les configurations de surface non finies ou les supports de pixels non entiers. Le rendu dispose d'un repli de police et le contrôle des couches de profondeur est isolé dans une fonction dédiée. Les 18 décisions et les 17 images restent exactement conformes aux résultats sauvegardés, sans nouvelle inférence ni réglage. [Compte rendu de revue](docs/44_PROJECT_MAINTENANCE.md#revue-avant-publication--22-octobre-2026). Le paquet précédent est conservé comme instantané historique.
 
-La correction du bord stéréo et les optimisations restent actives. Le cache conserve au plus six dates exactes, sans utiliser de profondeur future. `--no-history-cache` et `--opencv-threads 1` servent aux contrôles ciblés ; ces options ne rétablissent pas toutes les anciennes implémentations. Les mesures détaillées, références publiques partielles et limites de la pose sont dans [la page active](docs/20_NEXT_STEPS.md#conclusion-sur-les-preuves-disponibles).
+## Lire les sorties
 
-Dans les JSON, `context.updated=false` et `objects=[]` signifient que YOLO/XYZ n'a pas été exécuté à cette date. Le dernier contexte est référencé par `context.result_file`, avec timestamp et âge en temps dataset. Ce n'est pas une absence d'objet ni une position transportée dans la caméra actuelle. Les objets brefs entre deux actualisations peuvent ne pas être classés.
+- `clip.gif` : résultat visible, avec les libellés « mobile estimé », « immobile estimé » ou « indéterminé ».
+- `motion.jsonl` : indices de mouvement publiés à chaque date source, avant la stéréo courante et le contexte optionnel.
+- Un JSON par date : modèle final, diagnostics bruts, contexte daté, surfaces et décisions par détection. `physical_mobility` reste `UNCONFIRMED`.
+- Un NPZ par date : tableaux numériques du rejeu ; ces gros fichiers restent locaux et sont exclus du paquet de présentation.
+- `summary.json` : versions, empreintes, configuration et coûts observés. `verification.json` : comparaison d'intégration.
+
+Les fenêtres causales durent 50 ms, le pas source est de 20 ms et le suivi porte sur 100 ms. La compensation exige la profondeur exacte à t−100 ms. La stéréo interne reste calculée à chaque date ; YOLO et XYZ sont actualisés toutes les 100 ms dataset. Sur une date sans contexte, `objects=[]` et `context.updated=false` signifient « non calculé », et non « aucun objet ». Les anciens contextes ne sont pas superposés à l'image courante.
+
+## Limites à présenter avec la démonstration
+
+La décision mobile/immobile est **conditionnelle au modèle rigide dominant et à l'association de surface**. Elle n'est pas une étiquette de mobilité physique validée. Le garde-fou de modèles concurrents produit cinq abstentions sur ce rejeu ; un modèle accepté peut encore appartenir à une couche mobile. Le cas synthétique 108 points mobiles/16 points de fond et le biais de profondeur restent des contre-exemples connus.
+
+XYZ représente un point de surface échantillonné, pouvant appartenir au fond, et non le centre ou la trajectoire 3D de l'objet. Le contrôle F5 s'abstient devant plusieurs couches suffisamment distinctes et soutenues ; une cible sans profondeur valide peut rester invisible. La limite proche nominale est de 3,590 m pour la calibration et la recherche actuelles (0..95 px), sans garantie de couverture. Une profondeur absente ne révèle pas sûrement sa cause.
+
+L'extrait intégré appartient au train. Les comptes ci-dessus sont des occurrences sur un petit extrait, pas des objets uniques ou des mesures de précision/rappel indépendantes. Y01 personne/voiture reste le défaut. Y02 personne/voiture/camion est conservé comme essai historique et sa classe camion n'est pas qualifiée indépendamment. La validation indépendante reste ouverte ; aucun nouveau téléchargement ou message aux auteurs n'est engagé dans cette finalisation.
 
 <details>
 <summary>Installation sur un autre poste, acquisition et restauration des données</summary>
@@ -120,11 +141,16 @@ Les données et illustrations événementielles conservées localement sont issu
 
 </details>
 
-## Repères pour travailler sur le code
+## Pour développer ou retrouver l'historique
 
-- `src/pfe_events/` : algorithmes ; `scripts/run_integrated_demo.py` : commande principale.
-- `scripts/diagnostics/` et les autres commandes : outils spécialisés conservés, sans obligation de les exécuter.
-- `outputs/` : résultats locaux ; `docs/` : documentation ; `markdowns/` : miroir local hors Git.
-- [Cahier des charges](docs/PROJECT_BRIEF.md), [maintenance](docs/44_PROJECT_MAINTENANCE.md) et [commandes de contrôle](docs/16_COMMANDS.md).
+- [Commandes](docs/16_COMMANDS.md), [architecture](docs/05_PROJECT_ARCHITECTURE.md), [cahier des charges](docs/PROJECT_BRIEF.md).
+- [Historique des essais](docs/19_PROGRESS.md), [objectif et preuves détaillées](docs/38_OBJECTIF_OBJETS_MOBILES.md), [audit daté conservé](docs/AUDIT_TECHNIQUE_SCIENTIFIQUE_18_OCTOBRE_2026.md).
+- `src/pfe_events/` contient les composants ; `scripts/run_integrated_demo.py` est le parcours principal. Les diagnostics sont conservés comme historique et ne doivent pas être relancés indistinctement.
 
-Après une modification Markdown : `.\.venv\Scripts\python.exe scripts/sync_markdowns.py`.
+Contrôle commun, sans entraînement ni téléchargement :
+
+```powershell
+.\.venv\Scripts\python.exe -B scripts/check_project.py --output outputs/checks/local_01
+```
+
+Choisir une sortie neuve. Modifier les sources Markdown puis lancer `.\.venv\Scripts\python.exe -B scripts/sync_markdowns.py`. Le miroir `markdowns/` est local et hors Git.

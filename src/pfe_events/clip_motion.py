@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from .representations import rectified_counts, normalized_event_image
 from .rectified_tracking import checked_tracks, sample_disparity_depth
-from .rigid_motion import estimate_rigid_motion
+from .rigid_ambiguity import guarded_rigid_motion
 from .stereo import predict_stereo, StereoConfig
 
 
@@ -120,11 +120,13 @@ def infer_clip_motion(readers, maps, calibration, normalizer, current, *, end_us
     tracked=time.perf_counter()
     k=np.array([[calibration['fx_px'],0,calibration['cx_px']],
                 [0,calibration['fy_px'],calibration['cy_px']],[0,0,1.]])
-    model=estimate_rigid_motion(p,q,z,k,previous_us=start,current_us=end_us,
-                               depth_us=start,depth_source='predicted')
+    guarded=guarded_rigid_motion(p,q,z,k,previous_us=start,current_us=end_us,
+                                 depth_us=start,depth_source='predicted')
+    model=guarded['final']
     finished=time.perf_counter()
     arrays=dict(previous=p,current=q,depth_samples=z,fb_px=fb,seed_ids=ids)
     details=dict(seed_tracking=tracking,
+                 rigid_ambiguity={key:value for key,value in guarded.items() if key != 'final'},
                  history_reuse=dict(previous_stereo=cached_previous is not None,
                                     short_image=cached_short is not None),
                  history_windows_us=[[start-50000,start],

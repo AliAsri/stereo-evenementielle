@@ -2,6 +2,149 @@
 
 Décision utilisateur du 7 octobre 2026 : « on focus sur la detection des mouvement mobile ».
 
+## Rejeu intégré F5/F6/F2 vérifié — 22 octobre 2026
+
+Le parcours principal a été exécuté une seule fois dans un dossier neuf, avec les huit entrées figées conformes taille/SHA-256. Les empreintes de sources du résumé correspondent au code courant. **153 tableaux exactement conservés, 17 modèles et messages de mouvement inchangés**, cinq abstentions rigides maintenues, quatre contextes calculés et **18 décisions par détection exactement conformes** au contrôle sur tableaux sauvegardés. Dates surface/profondeur/décision cohérentes. [Vérification et empreintes](../outputs/object_surface/integrated_f2_20261022/verification.json).
+
+Résultat courant : **2 mobiles estimées, 2 immobiles estimées, 14 indéterminées**, toujours `physical_mobility=UNCONFIRMED`. Surfaces : 13 estimations, deux abstentions pour couches ambiguës, trois pour profondeur insuffisante. La plage stéréo proche 3,589705 m figure dans le résumé et les sorties de surface. Ces comptes sont des occurrences sur les quatre dates de contexte, pas des objets uniques ni des mesures de justesse physique.
+
+[GIF du rejeu complet](../outputs/object_surface/integrated_f2_20261022/clip.gif) ; [première date avec décisions](../outputs/object_surface/integrated_f2_20261022/first_frame.png). Le GIF contient 17 images ; première image et aperçu final inspectés, libellés lisibles et anciens contextes non superposés. Les coûts sont ceux observés dans ce rejeu courant, sans comparaison de vitesse ni gain revendiqué. Le dernier bilan logiciel reste **387 tests passés**, non réexécutés puisque le code n'a pas changé pour ce contrôle.
+
+**Contrôle d'intégration clos : ne pas répéter inchangé ni régler les seuils selon ce résultat.** F5/F6 et la règle conditionnelle F2 sont intégrés au démonstrateur, tandis que F2 reste partiel scientifiquement : pose caméra, appartenance de la surface, mobilité physique et identités persistantes non validées. La prochaine priorité scientifique est une référence indépendante adéquate ; accès en attente, aucune acquisition ou publication engagée automatiquement. Les optimisations et la maintenance non indispensable restent reportées.
+
+## F2 : décision conditionnelle par détection et surface — 22 octobre 2026
+
+`object_motion_decision` est branchée au contexte YOLO/XYZ du démonstrateur. Les sorties `mobility=MOBILE / IMMOBILE / INDETERMINATE` désignent des **estimations conditionnelles au modèle rigide dominant et à la surface**, avec `physical_mobility=UNCONFIRMED` et une raison explicite. L'ancien compteur `region_motion_support` reste disponible pour les diagnostics historiques et figure sous `roi_support` ; il n'est plus utilisé comme vote non filtré dans la décision intégrée.
+
+Les dates de la détection, de la surface, de la profondeur et des points courants doivent être identiques. La profondeur est échantillonnée dans la disparité **courante**, sans substitution de la profondeur t−100 ms de la compensation. Seuls les points de la région intérieure rectifiée, avec une profondeur valide dans les plages stéréo/surface et à une distance de la médiane ≤`max(0,25 m, 3×MAD)`, sont retenus. Le premier suivi par pixel arrondi est conservé pour éviter de multiplier le même support. Une surface ambiguë/absente ou un modèle final invalide impose l'abstention, sans repli sur le primaire brut.
+
+**Règle fixée avant les décisions DSEC** dans `outputs/object_surface/f2_20261022/rule.json` : au moins trois points évaluables, au moins 80 % de points évaluables parmi les suivis compatibles avec la surface, puis au moins 80 % de candidats résiduels pour MOBILE ou 80 % de points compatibles avec le modèle pour IMMOBILE ; mélange ou support insuffisant ⇒ INDETERMINATE. Ce sont des paramètres d'ingénierie non ajustés, sans calibration de probabilité ni validation de précision. UNKNOWN participe au dénominateur de couverture.
+
+**387 tests passent**, dont 13 nouveaux contrôles de décision : trois états, rejet du vote du fond, absence de profondeur courante, dates, doublons, support incomplet, surface/pose ambiguës, hors ROI/plage, seuils et configuration. Sur les 18 détections sauvegardées : **2 MOBILE estimés, 2 IMMOBILE estimés, 14 INDETERMINATE**. 165 occurrences de suivis sont dans les boîtes non filtrées, 29 retenues pour voter après les contrôles. Huit abstentions viennent d'un support de suivis insuffisant, cinq d'une surface indisponible et une d'un mélange. Ce sont des occurrences par détection, pas des objets uniques ni des vrais positifs.
+
+[Preuves, indices des points et empreintes](../outputs/object_surface/f2_20261022/verification.json) ; [visualisation depuis les résultats sauvegardés](../outputs/object_surface/f2_20261022/clip.gif). F5/F6 sont appliqués dans ces rendus ; aucun nouvel événement, appariement stéréo, suivi, modèle rigide ou YOLO n'a été calculé. Les temps affichés sont explicitement **archivés**, sans mesure du coût ajouté. L'aperçu a été inspecté et les libellés d'estimation/abstention sont visibles. La seule précision ultérieure du libellé de coût n'a pas nécessité de répéter la suite de tests.
+
+**F2 reste partiel scientifiquement.** IMMOBILE signifie accord avec le modèle à la résolution et sur l'intervalle observés ; pas preuve d'immobilité physique. Une erreur de suivi, de profondeur ou de modèle caméra peut changer ces états ; un mouvement sous le seuil ou peu visible en projection peut être manqué. L'appartenance à une couche de surface ne certifie pas l'identité de l'objet. Aucune identité persistante ni boîte à la date précédente n'est ajoutée ; la décision est attachée à la détection courante et à l'intervalle de ses suivis, pas à une trajectoire d'objet. Sur une date sans contexte, `objects=[]` signifie non calculé. La validation physique indépendante reste ouverte.
+
+Suite utile : un seul rejeu intégré de la configuration conservée pour vérifier l'export des nouveaux états avec les calculs courants, sans réglages ni promesse de précision. Les anciens contrôles clos ne sont pas repris.
+
+## F6 : plage stéréo explicitée et contrôlée — 22 octobre 2026
+
+La recherche SGBM conservée utilise `minDisparity=0`, `numDisparities=96`, donc des hypothèses entières de 0 à 95 px. Le code OpenCV ne raffine pas le dernier indice au-delà de cette borne. Avec la calibration canonique du démonstrateur 04_b, la limite proche nominale est **f×B/95 = 3,589705 m**. La valeur f×B/96 est une approximation basée sur la borne exclusive. [Source OpenCV 4.14.0](https://github.com/opencv/opencv/blob/4.14.0/modules/calib3d/src/stereosgbm.cpp) ; [documentation SGBM](https://docs.opencv.org/4.13.0/d2/d85/classcv_1_1StereoSGBM.html).
+
+`StereoConfig.depth_range(Q)` calcule cette limite à partir de la calibration et de la configuration, en refusant une matrice Q non canonique. Chaque sortie de `associate_surface` expose `depth_range` avec le minimum du filtre utilisateur, le minimum effectif `max(minimum utilisateur, limite stéréo)`, le maximum utilisateur et la borne de disparité. La valeur générique `SurfaceConfig.min_z_m=1` est conservée comme filtre métrique, sans être présentée comme une portée du capteur. Le résumé du démonstrateur inclura `stereo_depth_range` lors d'une future exécution.
+
+Les disparités positives marquées valides au-delà de 95 px sont exclues de l'association. Si tous les candidats fournis sont hors recherche, statut **`OUTSIDE_STEREO_SEARCH_RANGE`**, aucun XYZ. Ce statut décrit une incompatibilité des valeurs fournies avec la recherche configurée ; il ne prouve pas qu'un objet physique est trop proche. Une absence de disparité conserve `INSUFFICIENT_DEPTH`, `depth_absence_cause=UNDETERMINED`. Aucune distinction certaine entre texture insuffisante, occultation et hors-plage n'est inventée. Même à l'intérieur des limites, couverture et exactitude ne sont pas garanties.
+
+**374 tests passent.** Sept nouveaux cas vérifient calibration/configuration, Q incompatible, disparité hors recherche, borne exacte d=95 acceptée, absence sans cause attribuée et filtre utilisateur plus strict. Seule l'association a été recalculée sur les 18 boîtes/disparités archivées : **18/18 résultats F5 conservés exactement hors nouveaux champs de diagnostic**. [Preuves, empreintes et cas synthétiques](../outputs/object_surface/f6_20261022/verification.json). Aucun changement du matcher ou de ses paramètres, aucun rejeu complet, entraînement ou acquisition. Les GIF antérieurs précèdent F5 et F6.
+
+Suite fonctionnelle : F2, associer uniquement les suivis avec une profondeur courante compatible avec la surface courante, puis formaliser des états de mobilité conditionnels et leurs abstentions. Les profondeurs t−100 ms de la compensation ne doivent pas être comparées directement à une surface de t. L'appartenance à l'objet et la pose caméra restent non validées physiquement ; F5 et F6 ne lèvent pas ces limites.
+
+## F5 : abstention devant plusieurs couches de profondeur — 22 octobre 2026
+
+Le cas signalé est reproduit avant correction : cible à 5 m sur 64 des 432 pixels de la région intérieure, fond à 20 m sur 368 pixels ; l'ancien estimateur renvoie 20 m avec IQR nul. `associate_surface` inspecte désormais les profondeurs valides avant le filtrage MAD. Si au moins deux groupes distincts ont chacun au moins 12 pixels et une dispersion relative IQR/médiane ≤0,35, il renvoie `AMBIGUOUS_DEPTH_LAYERS`, sans XYZ ni distance. Les couches sont décrites dans le résultat ; aucune n'est désignée comme l'objet. [Cas avant/après, empreintes et contrôle local](../outputs/object_surface/f5_20261022/verification.json).
+
+Les groupes sont séparés uniquement par un saut de profondeur strictement supérieur à `max(0,25 m, 0,35 × profondeur précédente triée)`, en réutilisant les tolérances existantes. Les 12 pixels de support minimal s'appliquent par groupe ; il n'est pas exigé 10 % de la région pour détecter une ambiguïté minoritaire. Il s'agit d'un garde-fou heuristique en profondeur, sans certification de cohérence spatiale ou d'identité sémantique et sans réglage sur DSEC. Une occultation entraîne la même abstention : la couche proche n'est pas automatiquement la cible.
+
+**367 tests passent, dont 17 tests de surface.** Six nouveaux cas couvrent cible minoritaire, occultation, couche de 12 pixels sous 10 %, surface unique inclinée, couche invalide et dispersion continue ; les contrôles de profondeur absente et de dates restent en place. Sur les 18 boîtes du dernier rejeu sauvegardé, **16 sorties exactes et deux nouvelles abstentions** : fichier 080000/indice 3, fichier 380000/indice 0 (indices depuis zéro). Seule l'association de surface a été recalculée sur boîtes/disparités déjà sauvegardées ; aucun rejeu événementiel, stéréo, YOLO ou mouvement.
+
+**Portée limitée :** une cible sans profondeur valide, située hors région intérieure, sous le support minimal ou sans séparation nette entre couches peut toujours laisser le fond comme seule couche estimée. Une couche unique ne certifie donc pas l'appartenance à l'objet. Les deux abstentions DSEC ne constituent pas des erreurs physiques corrigées avec vérité terrain. Le GIF du 20 octobre précède cette correction de surface. Aucun résultat de mobilité n'est modifié et aucune exactitude 3D indépendante n'est revendiquée.
+
+Suite : F6, expliciter la plage liée à la calibration et à la recherche de disparités sans attribuer une cause certaine à une profondeur absente. F2 nécessite ensuite une association des suivis à la surface à la même date et des états conditionnels ; F8/F10 sont déjà corrigés dans le parcours actuel.
+
+## Rejeu intégré avec abstentions — 20 octobre 2026
+
+Un seul rejeu complet Y01 effectué après intégration du garde-fou, avec les huit entrées vérifiées taille/SHA-256 : **153 tableaux exactement conservés**, 17 primaires exacts, 17 modèles finaux conformes au contrôle sur archives, 17 messages `motion.jsonl` cohérents. Les cinq dates ambiguës restent celles attendues ; aucune pose finale ni candidat résiduel publié à ces dates. Détections, surfaces XYZ et dates de contexte conservées ; seuls les supports de mouvement associés peuvent changer avec l'abstention. [Vérification](../outputs/motion/ambiguity_replay_20261020/verification.json).
+
+Le rendu signalait initialement les points inconnus en gris sans expliquer l'abstention. Libellé explicite ajouté dans `run_integrated_demo.py` et rendu régénéré depuis les tableaux sauvegardés, **sans nouvelle inférence**. [Visualisation actualisée](../outputs/motion/ambiguity_replay_20261020/clip_labeled.gif), [exemple d'abstention](../outputs/motion/ambiguity_replay_20261020/ambiguity_preview.png). L'aperçu a été inspecté visuellement. Le GIF original est conservé ; les coûts de rendu du résumé correspondent au premier rendu, pas à cette régénération. Les 361 tests constituent le dernier bilan logiciel, non réexécuté pour le seul changement de libellé.
+
+Contrôle d'intégration clos : ne pas répéter ce rejeu inchangé. Aucun gain de vitesse ou de précision revendiqué ; pas de validation réelle de mobilité. Le parcours fonctionnel et ses exports sont désormais vérifiés avec le garde-fou. La priorité scientifique restante est la validation indépendante de la séparation objet/caméra, toujours en attente d'une référence adéquate. Aucun nouvel essai, téléchargement, réglage ou publication engagé automatiquement.
+
+## Garde-fou intégré à la branche mouvement — 20 octobre 2026
+
+**Intégration fonctionnelle autorisée après la comparaison de simplification.** `src/pfe_events/rigid_ambiguity.py` porte la règle synthétique figée ; `infer_clip_motion` publie sa sortie finale. Le modèle primaire historique reste inchangé. Les modèles bruts, indices du second support, dénominateurs et séparation restent dans `motion_details.rigid_ambiguity` ; en cas d'ambiguïté, le modèle final est invalide, sans pose, sans résidus et avec tous les points UNKNOWN. Les compteurs de consensus du modèle final restent ceux du primaire brut, pas une preuve de pose acceptée. Aucun choix entre modèles par nombre d'inliers.
+
+Vérification d'intégration, distincte de la répétition d'une expérience scientifique : les sorties du nouveau module sont **exactement identiques aux douze résultats synthétiques archivés**. Sur les correspondances/profondeurs sauvegardées des 17 dates DSEC, les 17 primaires restent exacts ; **12 sorties finales inchangées, cinq abstentions ajoutées**, aux fichiers 100000, 160000, 240000, 340000 et 360000. Les fichiers sont des identifiants du rejeu, pas des horodatages absolus. Les autres secondaires sont rejetés. [Vérification et empreintes](../outputs/motion/ambiguity_integration_20261020/verification.json).
+
+**361 tests passent**, dont les contrats du garde-fou en production et un contrôle que la branche publie bien le final abstentionniste, jamais le primaire brut comme repli. Aucun rejeu événements/stéréo/YOLO complet ni nouveau GIF effectué pour ce contrôle : les visualisations précédentes représentent encore la version antérieure. Aucun gain de précision ou de vitesse établi. Le coût supplémentaire éventuel n'a pas été mesuré. Les cinq abstentions ne sont pas des ambiguïtés physiques certifiées ; erreurs de suivi et de profondeur restent possibles. Les limites 108/16 et profondeur biaisée restent présentes.
+
+Suite utile : un seul rejeu intégré de la configuration conservée pour vérifier l'export et afficher ces abstentions dans le résultat final, sans nouvelle campagne de réglages. La validation indépendante demeure ouverte.
+
+## Simplification par homographie examinée — 20 octobre 2026
+
+**Décision : conserver la compensation 3D.** L'utilisateur a autorisé une comparaison bornée avant toute suppression de la dépendance à la profondeur. Protocole écrit avant les prédictions dans `outputs/motion/homography_comparison_20261020/protocol.json`. Les douze cas synthétiques archivés et le primaire 3D existant ont été contrôlés par SHA-256 ; aucun primaire 3D réestimé, aucun rejeu DSEC/EVIMO2. Les observations identiques partagent une seule prédiction 2D. [Résultats complets](../outputs/motion/homography_comparison_20261020/result/summary.json).
+
+Baseline unique : homographie OpenCV RANSAC, consensus 1,5 px, candidats >3 px, 500 itérations, confiance 0,999, au moins 20 points / 16 inliers / fraction 0,6 / enveloppe 0,1. Aucun masque, profondeur ou pose de référence en entrée. Les supports sont recomptés après estimation ; un modèle rejeté laisse tous les points UNKNOWN. Aucun ajustement après résultat.
+
+| Cas | Compensation 3D archivée | Homographie | Conclusion |
+|---|---|---|---|
+| Statique et rotation caméra seule | 124 points évalués, aucun candidat statique | Identique sur ces comptes | Critères satisfaits |
+| Translation caméra, scène à plusieurs profondeurs | 124 points évalués, aucun candidat statique | 66/124 inliers, fraction 0,532 <0,6 ; rejet, 124 UNKNOWN | Perte de couverture |
+| Objet seul, translation ou rotation | 16 candidats sur l'objet | 16 candidats sur l'objet | Critères satisfaits |
+| Caméra et objet combinés | 16 candidats sur l'objet | Modèle rejeté ; zéro point évalué | Perte des candidats |
+| Cas combiné bruité fixé | 16 candidats sur l'objet | 62/124 inliers ; modèle rejeté | Critère échoué |
+| Profondeur manquante | Abstention | Abstention | Aucune récupération |
+| Profondeur biaisée et couche mobile dominante | 16 candidats statiques erronés dans chaque cas | Abstention complète | Ne démontre pas une séparation correcte |
+| Deux mondes concurrents | Même primaire, correct dans un monde et incorrect dans l'autre | 48/108 inliers ; abstention dans les deux | Pas d'identification caméra |
+
+Quatre des huit conditions d'acceptation échouent. Cette homographie unique ne remplace donc pas le modèle 3D sous le protocole fixé. Les rejets sont compatibles avec la parallaxe de la scène ; **aucun faux candidat statique n'est émis par les modèles 2D acceptés dans cet essai**. Ne pas transformer cette observation en affirmation que toute approche sans profondeur serait impossible. Pas de balayage de seuils, de nouveaux modèles ou de cas favorables. Quatre tests de contrat ajoutés ; **353 tests passent** dans la suite complète.
+
+### Architecture retenue après la comparaison
+
+Un seul parcours reste maintenu : `scripts/run_integrated_demo.py`. La branche mouvement conserve le suivi et la compensation avec profondeur exacte à la date source. La stéréo interne fournit cette profondeur et ne peut pas être simplement ralentie sans changer ce contrat. La reconnaissance YOLO et la publication des surfaces XYZ restent du contexte daté moins fréquent ; leur classe ne détermine jamais la mobilité. Un manque de preuve entraîne une abstention, et non une affirmation d'immobilité.
+
+Aucun remplacement de moteur ni refactoring du pipeline n'a été effectué : l'essai ne justifie pas cette suppression de dépendance. Les rôles mouvement / contexte sémantique / surface 3D restent explicitement séparés dans la conception, sans ajouter de worker, ordonnanceur ou couche d'abstraction. Prochaine étape fonctionnelle proposée : intégrer seulement le garde-fou d'ambiguïté déjà contrôlé, avec les limites connues et une vérification des sorties. Cela ne fournit toujours pas une validation réelle du mouvement indépendant. Optimisation et maintenance non indispensable restent reportées.
+
+## Résultat du contrôle synthétique — 20 octobre 2026
+
+**Contrôle exécuté une fois, quatre critères satisfaits ; non intégré à DSEC.** Les empreintes du protocole et des trois sources gelées ont été vérifiées avant toute prédiction. Script : `scripts/diagnostics/check_rigid_ambiguity.py`. [Résultats complets et modèles bruts](../outputs/motion/rigid_ambiguity_20261019/result_20261020/summary.json).
+
+- Les sept cas simples (dont le cas bruité fixé) conservent exactement le primaire ; le manque de profondeur conserve son abstention.
+- Cas concurrent : primaire 72/108 inliers, secondaire 36/36 ; séparation médiane des projections **6,67 px**. Les deux interprétations physiques reçoivent la même abstention, **108 points UNKNOWN et aucune pose finale**. Une seule prédiction est évaluée contre les deux références, puisque les observations sont identiques.
+- Le primaire seul présente une erreur de translation proche de zéro dans le monde A et **0,16 m** dans le monde B. Son consensus ne suffit donc pas à identifier la caméra.
+- **Limites maintenues :** le cas historique 108 mobiles/16 points de fond conserve une pose erronée de 0,16 m ; la profondeur biaisée conserve 16 candidats sur des points statiques. Dans les deux cas, les 16 résidus ne permettent pas le second ajustement exigé à 20 points. Aucun seuil abaissé.
+
+Les compteurs de consensus conservés dans la sortie finale ambiguë décrivent le primaire brut ; `valid=false`, `evaluated_points=0` et la pose absente imposent l'abstention. Le diagnostic n'utilise aucune identité, pose ou masque de référence en entrée. Les références interviennent uniquement dans l'évaluation après prédiction. Il s'agit de géométrie synthétique avec profondeur de référence, sans simulation des événements, de LK ou de SGBM : **aucune fiabilité physique DSEC démontrée**.
+
+Sept tests de contrat vérifient les bornes, rejets, projections et l'identité des observations. **349 tests passent** dans la suite complète ; son journal est conservé dans le dossier de résultat. Contrôle clos : ne pas le répéter inchangé, ne pas promouvoir automatiquement le garde-fou. La prochaine décision utile porte sur son intégration éventuelle comme abstention explicite, avec ses deux échecs connus conservés, et non comme validation du mouvement indépendant.
+
+## Protocole borné : ambiguïté de deux mouvements rigides — 19 octobre 2026
+
+**Statut : protocole fixé avant implémentation et prédiction.** L'utilisateur accepte de préparer un contrôle synthétique de l'ambiguïté du mouvement dominant. Pas de nouveau dataset, entraînement, benchmark de vitesse, optimisation ou intégration DSEC. Les contrôles EVIMO2 clos ne sont pas repris. Ce protocole teste une abstention diagnostique, pas une nouvelle méthode capable de reconnaître avec certitude le mouvement caméra.
+
+### Hypothèse et limite préalable
+
+Si deux transformations distinctes disposent chacune d'un support réparti suffisant, les seules correspondances et profondeurs source ne désignent pas nécessairement laquelle appartient à la caméra. Détecter cette concurrence pourrait justifier `AMBIGUOUS_RIGID_MODELS` et l'abstention. Un unique modèle accepté reste seulement un modèle dominant.
+
+**Le contre-exemple historique `dominant_moving_layer` ne sera pas résolu par cette règle :** il contient 108 points mobiles dominants et seulement 16 points de fond localisés. Le second ajustement nécessite au moins 20 points ; le fond ne les fournit pas. Ne pas abaisser ce minimum ni déplacer les points de ce cas pour obtenir un succès. Le biais de profondeur peut également rester indiscernable d'un mouvement. Ces limites sont des résultats attendus du raisonnement, à conserver même si les nouveaux contrôles passent.
+
+### Règle candidate unique, à implémenter seulement dans le contrôle
+
+1. Calculer le modèle primaire avec `estimate_rigid_motion` et ses paramètres actuels. S'il est refusé, conserver cette abstention, sans deuxième estimation.
+2. Sur les mêmes entrées, retenir uniquement les points avec profondeur exploitable et résidu primaire fini **strictement supérieur à 3 px**. Aucun masque, identité d'objet ou pose de référence ne participe à cette sélection.
+3. S'il y a au moins 20 points, effectuer **un seul** ajustement secondaire sur cet ensemble avec les mêmes seuils : au moins 16 inliers, fraction 0,6, enveloppe 0,1, consensus 1,5 px, 500 itérations. La fraction secondaire a pour dénominateur son sous-ensemble, et doit être rapportée ainsi.
+4. Si le secondaire est accepté, comparer les projections des deux transformations sur les points de profondeur utilisable et projetables devant les deux caméras. Exiger au moins 20 points communs et une séparation médiane **strictement supérieure à 3 px** pour déclarer une concurrence. Ces seuils réutilisés sont des choix d'ingénierie non calibrés, pas des garanties statistiques.
+5. En cas de concurrence : sortie diagnostique finale indéterminée pour tous les points, aucune pose déclarée caméra, modèles bruts conservés pour comprendre le cas. Sinon conserver exactement la sortie primaire et indiquer `AMBIGUITY_NOT_DETECTED`, jamais « caméra validée ».
+
+Aucun choix du meilleur modèle par nombre d'inliers, aucune troisième estimation, permutation, recherche de seuil ou utilisation des labels dans le détecteur. Le contrôle possède la référence pour l'évaluation seulement.
+
+### Cas figés avant résultats
+
+Réutiliser les contrôles existants sans modifier leurs scènes : `static`, `camera_translation`, `camera_rotation`, `object_translation`, `combined`, `object_rotation`, `missing_depth`, `biased_near_depth`, `dominant_moving_layer`, avec graine 0 et bruit 0. Ajouter uniquement le contrôle `combined`, graine 7, bruit 0,2 px, déjà présent dans les tests. Les tests de cohérence ne constituent pas une campagne sur données réelles.
+
+Construire un cas concurrent déterministe de 108 points : grille 12×9, x linéaire de 65 à 575 px, y de 55 à 425 px ; `K=[[500,0,320],[0,500,240],[0,0,1]]`. Pour ligne r et colonne c, profondeur `6 + 6*((r+c)%3)` mètres. Le groupe B est défini par `c%3==0` (36 points), A par le complément (72 points). Rotations identités, déplacements dans le repère caméra source `t_A=(+0,08,0,0)` m et `t_B=(-0,08,0,0)` m. Projeter avec K, sans bruit ; taille 640×480, dates 0 et 100 000 µs, profondeur source à 0, provenance synthétique déclarée. Si l'un des modèles n'est pas estimé, publier cet échec sans modifier grille, proportions ou déplacements.
+
+**Deux interprétations physiques du même cas :** monde A, caméra transformée de +0,08 m, groupe A fixe et déplacement indépendant B de −0,16 m ; monde B, caméra transformée de −0,08 m, groupe B fixe et déplacement indépendant A de +0,16 m. Les observations (p, q, Z, K, dates) sont identiques ; seules les vérités de référence diffèrent. La décision du détecteur doit donc être identique. Ce contre-exemple prouve la limite d'identification à partir de ces seules entrées ; il ne simule ni les événements ni les erreurs de LK/SGBM.
+
+### Critères d'acceptation et arrêt
+
+- Les contrôles caméra seule et les objets minoritaires des fixtures existantes doivent garder exactement la sortie primaire ; `missing_depth` doit garder son abstention.
+- Les deux interprétations du cas concurrent doivent conduire à une abstention pour ambiguïté, sans sélectionner une pose caméra. Rapporter aussi le primaire seul, ses supports et son erreur de pose dans chaque interprétation ; une pose identique ne peut être correcte pour les deux.
+- Rapporter pour tous les cas : statut primaire/secondaire/final, nombre de points et d'inliers avec dénominateurs, enveloppes, séparation des projections, nombre de points évalués/indéterminés, erreur de pose face à la référence et abstentions ajoutées. Aucune moyenne ne doit masquer les deux contre-exemples historiques non résolus.
+- **Échec d'un critère : hypothèse non retenue sous ce protocole**, pas de réglage jusqu'à réussite. Réussite : preuve synthétique limitée d'un garde-fou d'ambiguïté, pas validation physique ni promotion DSEC automatique. L'augmentation des abstentions et les ambiguïtés non détectées doivent rester visibles.
+
+Les sources et le texte de ce protocole sont identifiés avant prédiction dans `outputs/motion/rigid_ambiguity_20261019/protocol.json`. Prochaine action : implémenter et exécuter ce seul contrôle local, hors du parcours principal, puis décider à partir de tous les cas, y compris les échecs.
+
 ## Validation indépendante proposée — 19 octobre 2026
 
 **Statut : préparation choisie, acquisition autorisée puis close au plafond ; références non obtenues, évaluation non exécutée.** Après l'échec ORB, l'utilisateur choisit de préparer une validation avec une référence publique indépendante. Le lot et son budget ont été proposés avant téléchargement, puis approuvés dans une réponse explicite. Les contrôles EVIMO2 train déjà explorés restent clos. Aucun changement du démonstrateur DSEC, de ses paramètres ou de son checkpoint.

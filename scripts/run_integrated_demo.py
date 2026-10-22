@@ -88,11 +88,12 @@ def context_metadata(timestamp_us, source_us):
 
 
 def render(native, rectified, points, statuses, objects, row):
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
+    from pfe_events.visualization import load_demo_font
     image = Image.new('RGB',(1280,880),'#102030')
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype('C:/Windows/Fonts/arial.ttf',18)
-    small = ImageFont.truetype('C:/Windows/Fonts/arial.ttf',16)
+    font = load_demo_font(18)
+    small = load_demo_font(16)
     def text(x,y,value,color='white',small_font=False):
         draw.text((x,y),value,fill=color,font=small if small_font else font)
     text(12,10,'DSEC | Objets, profondeur et indices de mouvement')
@@ -117,7 +118,10 @@ def render(native, rectified, points, statuses, objects, row):
             u,v = surface['rectified_pixel']
             draw.ellipse((u+635,v+89,u+645,v+99),outline='#35ddff',width=2)
             text(u+648,v+94,f'#{index+1}','#35ddff',True)
-    text(12,586,'Mouvement propre NON CONFIRME | vert = compatible avec le modele | gris = inconnu','#ffcf70',True)
+    if row.get('motion_model', {}).get('status') == 'AMBIGUOUS_RIGID_MODELS':
+        text(12,586,'ABSTENTION : deux modeles rigides concurrents | pose camera indeterminee | gris = inconnu','#ffcf70',True)
+    else:
+        text(12,586,'Mouvement propre NON CONFIRME | vert = compatible avec le modele | gris = inconnu','#ffcf70',True)
     text(12,614,'Surface estimee : X droite, Y bas, Z avant (metres) ; ce point peut appartenir au fond.',small_font=True)
     context = row.get('context', {'updated': True})
     if not context['updated']:
@@ -130,12 +134,15 @@ def render(native, rectified, points, statuses, objects, row):
         s=obj['surface']; xyz=s['xyz_m']; m=obj['motion_support']
         loc = (f'X={xyz[0]:.2f}  Y={xyz[1]:.2f}  Z={xyz[2]:.2f} m'
                if xyz is not None else f"XYZ indisponible ({s['status']})")
-        text(12,642+index*25,f"#{index+1} {obj['class_name']} ({obj['confidence']:.2f}) | {loc} | points residuels {m['RESIDUAL_CANDIDATE']}/{m['tracked_points']}",small_font=True)
+        label={'MOBILE':'mobile estime','IMMOBILE':'immobile estime',
+               'INDETERMINATE':'indetermine'}.get(m['mobility'],'non confirme')
+        text(12,642+index*25,f"#{index+1} {obj['class_name']} ({obj['confidence']:.2f}) | {loc} | {label} | residus {m['RESIDUAL_CANDIDATE']}/{m['tracked_points']}",small_font=True)
     if len(objects)>6: text(12,786,f'{len(objects)-6} autres detections : details dans le JSON.',small_font=True)
     text(12,812,'Numeros propres a cette image ; aucune identite d objet suivie.','#b7c8d8',True)
     cost = row['timing_ms']['full_pipeline']
     budget_status = 'HORS BUDGET' if cost > 20 else 'budget calcul respecte'
-    text(12,842,f"CPU | calcul : {cost:.0f} ms / budget 20 ms | {budget_status} | hors rendu/export",'#b7c8d8',True)
+    cost_label = 'calcul archive' if row.get('render_from_saved_arrays') else 'calcul'
+    text(12,842,f"CPU | {cost_label} : {cost:.0f} ms / budget 20 ms | {budget_status} | hors rendu/export",'#b7c8d8',True)
     return image
 
 
@@ -182,7 +189,7 @@ def main():
     from pfe_events.representations import (BilinearRectifier, stereo_event_images,
                                             polarity_counts, normalized_event_image)
     from pfe_events.stereo import predict_stereo, StereoConfig
-    from pfe_events.object_surface import associate_surface, region_motion_support
+    from pfe_events.object_surface import associate_surface, object_motion_decision
     from pfe_events.clip_motion import infer_clip_motion, ClipMotionCache
     from pfe_events.replay_timing import offline_cadence_budget
     settings.update({'sync':False})
@@ -219,6 +226,7 @@ def main():
                                    stereo_matching_jobs=2, stereo_executor_workers=1,
                                    representation_jobs=2, representation_worker='same persistent stereo executor'),
                 stereo=StereoConfig().to_dict(),
+                stereo_depth_range=StereoConfig().depth_range(calibration['q']),
                 rectification=dict(method='precomputed bilinear geometry; original event order',
                                    setup_ms=rectifier_setup_ms,
                                    lookup_bytes=sum(a.nbytes for r in rectifiers
@@ -300,7 +308,8 @@ def main():
                                 prediction.boxes.cls.cpu().numpy()) if prediction is not None else ())
                 for box,confidence,cls in detections:
                     surface=associate_surface(box,maps[0],disparity,valid,calibration['q'],detection_us=end,depth_us=end)
-                    support=region_motion_support(box,maps[0],disparity.shape,points,statuses)
+                    support=object_motion_decision(box,maps[0],disparity,valid,calibration['q'],
+                                                   points,motion,surface,detection_us=end,depth_us=end)
                     objects.append(dict(native_xyxy=box.tolist(),class_id=int(cls),class_name=model.names[int(cls)],
                                         confidence=float(confidence),surface=surface,motion_support=support))
                 if update_context:

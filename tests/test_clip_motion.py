@@ -131,6 +131,17 @@ class ClipMotionCacheTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.cache.check_context(self.readers,self.maps,dict(self.calibration),self.normalizer,320000)
 
+    def test_guard_final_is_published_not_raw_primary(self):
+        final={'valid':False, 'status':'AMBIGUOUS_RIGID_MODELS',
+               'transform_previous_to_current':None}
+        guarded={'final':final, 'primary':{'valid':True},
+                 'ambiguity':'AMBIGUOUS_RIGID_MODELS'}
+        with patch('pfe_events.clip_motion.guarded_rigid_motion',return_value=guarded):
+            (_,model,details),_=self.infer(None)
+        self.assertIs(model,final)
+        self.assertEqual(details['rigid_ambiguity']['primary'],{'valid':True})
+        self.assertNotIn('final',details['rigid_ambiguity'])
+
     def test_owned_readonly_arrays_bounded_history_and_monotonic_dates(self):
         self.remember(200000)
         self.disparity[:]=20

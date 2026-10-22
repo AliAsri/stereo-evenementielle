@@ -1,5 +1,19 @@
 # Organisation, revue et maintenance
 
+## Revue avant publication — 22 octobre 2026
+
+L'utilisateur demande explicitement une revue, un nettoyage/refactoring et le push GitHub. Deux défauts logiciels reproduits sont corrigés : les configurations de surface acceptaient des valeurs infinies ou des supports en pixels non entiers ; le rendu dépendait d'un fichier Arial Windows obligatoire. `SurfaceConfig` valide maintenant ses paramètres à la construction, les seuils de décision refusent aussi les booléens/chaînes, et la police possède des replis locaux. Aucun seuil scientifique valide n'est modifié.
+
+Refactoring ciblé : extraction du contrôle des couches de profondeur dans `_supported_depth_layers`, validation des configurations centralisée, chargement des polices partagé dans `visualization`. Les expériences gelées et leur code diagnostique sont conservés. Les données, environnements, poids, paquets ZIP et résultats restent exclus de Git ; aucun fichier d'expérience ou acquis local supprimé par cette revue.
+
+Vérifications observées : **391 tests passent, 129 fichiers Python et 47 aides CLI contrôlés**, huit entrées figées conformes taille/SHA-256, `pip check` réussi dans les deux environnements. La comparaison sur les tableaux déjà enregistrés conserve exactement **18 surfaces/décisions et 17 images RGB** ; pas de nouveau rejeu événementiel, entraînement ou benchmark. Le repli de police a été testé avec fichiers de polices absents et un rendu réel de texte.
+
+Inventaire avant staging : 213 fichiers de source/configuration/documentation, environ 2,08 Mo, aucun fichier au-dessus de 1 Mio et aucune archive/donnée/checkpoint dans la sélection. La recherche de formats usuels de clés privées et jetons n'a relevé aucun candidat dans cette sélection ; elle ne constitue pas une garantie exhaustive. Les copies `markdowns/` restent hors Git. Les suppressions de temporaires de la livraison antérieure sont déjà documentées dans ses preuves et ne sont pas une suppression d'expérience.
+
+Preuves locales : [contrôles](../outputs/reviews/prepush_20261022/checks/report.json), [régression](../outputs/reviews/prepush_20261022/regression.json), [inventaire](../outputs/reviews/prepush_20261022/inventory.json). L'ancien paquet est conservé ; la livraison revue utilise `outputs/delivery/reviewed_20261022/prototype-local.zip` et ses empreintes propres. Le résultat de référence demeure celui du rejeu complet du 22 octobre, avec équivalence ciblée du code revu sur les données sauvegardées.
+
+Les limites scientifiques restent ouvertes : référence physique de mobilité, pose caméra, appartenance de la surface, centre/trajectoire 3D, qualification camion et temps réel. La revue logicielle ne les transforme pas en résultats validés.
+
 ## Nettoyage du dépôt — 19 octobre 2026
 
 Après publication `480332d`, inventaire Git : **205 fichiers, 1 990 819 octets de contenu**, aucun fichier de plus de 1 Mo et aucun doublon exact par SHA-256. Ce volume exclut l'historique Git, les environnements, données, poids et résultats ignorés. Les anciens lecteurs, outils d'annotation et diagnostics encore référencés sont conservés pour la reproductibilité ; aucune expérience locale supprimée.

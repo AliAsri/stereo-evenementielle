@@ -145,6 +145,23 @@ class SplatTests(unittest.TestCase):
 
 
 class StereoTests(unittest.TestCase):
+    def test_search_depth_limit_uses_calibration_and_last_hypothesis(self):
+        q = np.array([[1,0,0,-25],[0,1,0,-20],[0,0,0,570],[0,0,1/.6,0]],float)
+        limit = StereoConfig().depth_range(q)
+        self.assertEqual(limit['max_disparity_px'], 95)
+        self.assertAlmostEqual(limit['min_z_m'], 3.6)
+        self.assertFalse(limit['coverage_guaranteed'])
+        self.assertAlmostEqual(StereoConfig(num_disparities=32).depth_range(q)['min_z_m'],342/31)
+        q[2,3] *= 2
+        self.assertAlmostEqual(StereoConfig().depth_range(q)['min_z_m'], 7.2)
+
+    def test_unsupported_q_cannot_publish_a_false_depth_limit(self):
+        q = np.array([[1,0,0,-25],[0,1,0,-20],[0,0,0,570],[0,0,1/.6,0]],float)
+        for index,value in (((3,3),1.),((2,3),0.),((3,2),-1.),((0,1),.2),((0,0),np.nan)):
+            bad=q.copy(); bad[index]=value
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                StereoConfig().depth_range(bad)
+
     def test_invalid_configuration_cannot_disable_consistency(self):
         for tolerance in (float('nan'), float('inf'), -float('inf'), -1):
             with self.subTest(tolerance=tolerance), self.assertRaises(ValueError):
